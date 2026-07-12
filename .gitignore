@@ -1,0 +1,27 @@
+# Unity
+unity/[Ll]ibrary/
+unity/[Tt]emp/
+unity/[Oo]bj/
+unity/[Bb]uild/
+unity/[Bb]uilds/
+unity/[Ll]ogs/
+unity/[Uu]ser[Ss]ettings/
+unity/[Mm]emoryCaptures/
+unity/.vs/
+unity/*.csproj
+unity/*.sln
+unity/*.suo
+unity/*.tmp
+
+# Blender
+blender/*.blend1
+blender/*.blend2
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Divers
+*.log
+.env
