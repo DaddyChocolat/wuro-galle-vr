@@ -1,7 +1,7 @@
 # Wuro & Galle : L'Espace Peul entre Campement et Territoire
 
 Projet VR — IAN/IHN 851, ENSPM Université de Maroua, Département des Arts et Humanités Numériques.
-Réalisé en solo par Eddy (promotion 2022-2027), initialement prévu pour un groupe de 3.
+Réalisé en groupe par Daddy_Chocolat_36; Abdoul Rachid et Mairamou Alh-nouhou (promotion 2022-2027)..
 
 ## Concept
 
