@@ -19,7 +19,7 @@ docs/      corpus documentaire, glossaire, notes éthiques, rapport réflexif
 audio/     sons ambiants, voix-off, musique
 ```
 
-## Contraintes techniques assumées (scope solo)
+## Contraintes techniques assumées
 
 - Poste local : Core i5 5e gén, 20 Go RAM, sans GPU dédié
 - Modélisation Blender en local ; intégration Unity lourde (lightmap baking, VFX) sur VM GPU louée ponctuellement
