@@ -1,0 +1,118 @@
+<svg viewBox="0 0 900 1180" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, 'DejaVu Serif', serif">
+  <rect x="0" y="0" width="900" height="1180" fill="#FAF7F2"/>
+
+  <text x="450" y="45" text-anchor="middle" font-size="26" font-weight="bold" fill="#2A1E14">Wuro &amp; Galle — Planche de présentation des matériaux</text>
+  <text x="450" y="68" text-anchor="middle" font-size="13" fill="#5A4A3A">Couleurs de base (Principled BSDF) telles que réglées dans les scripts — rendu approximatif sRGB, à valider en Material Preview</text>
+
+  <text x="40" y="110" font-size="17" font-weight="bold" fill="#2A1E14">1. Mobilier domestique</text>
+  <line x1="40" y1="118" x2="860" y2="118" stroke="#C9BBA8" stroke-width="1"/>
+
+  <g>
+    <rect x="40" y="132" width="250" height="90" fill="#9E7551" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="40" y="240" font-size="14" font-weight="bold" fill="#2A1E14">Calebasse_bois_pyrogravé</text>
+    <text x="40" y="258" font-size="12" fill="#5A4A3A">Calebasse · rugosité 0,55</text>
+    <text x="40" y="274" font-size="12" fill="#5A4A3A">Grain Noise→Bump fin</text>
+  </g>
+  <g>
+    <rect x="325" y="132" width="250" height="90" fill="#8F6F55" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="325" y="240" font-size="14" font-weight="bold" fill="#2A1E14">Bois_brut</text>
+    <text x="325" y="258" font-size="12" fill="#5A4A3A">Mortier, Pilon · rugosité 0,75</text>
+    <text x="325" y="274" font-size="12" fill="#5A4A3A">Grain marqué (non poncé)</text>
+  </g>
+  <g>
+    <rect x="610" y="132" width="250" height="90" fill="#CDB785" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="610" y="240" font-size="14" font-weight="bold" fill="#2A1E14">Paille_tressée</text>
+    <text x="610" y="258" font-size="12" fill="#5A4A3A">Natte · rugosité 0,85</text>
+    <text x="610" y="274" font-size="12" fill="#5A4A3A">Très mat, fibreux</text>
+  </g>
+
+  <text x="40" y="310" font-size="17" font-weight="bold" fill="#2A1E14">2. Armature &amp; nattes — suudu</text>
+  <line x1="40" y1="318" x2="860" y2="318" stroke="#C9BBA8" stroke-width="1"/>
+
+  <g>
+    <rect x="40" y="332" width="250" height="90" fill="#98856F" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="40" y="440" font-size="14" font-weight="bold" fill="#2A1E14">Branche_bois_brut</text>
+    <text x="40" y="458" font-size="12" fill="#5A4A3A">6 arches · rugosité 0,82</text>
+    <text x="40" y="474" font-size="12" fill="#5A4A3A">Grain fin (fibres du bois)</text>
+  </g>
+  <g>
+    <rect x="325" y="332" width="250" height="90" fill="#CDB785" stroke="#2A1E14" stroke-width="1.5"/>
+    <circle cx="365" cy="360" r="6" fill="#FAF7F2" opacity="0.85"/>
+    <circle cx="405" cy="385" r="5" fill="#FAF7F2" opacity="0.85"/>
+    <circle cx="450" cy="355" r="7" fill="#FAF7F2" opacity="0.85"/>
+    <circle cx="500" cy="400" r="5" fill="#FAF7F2" opacity="0.85"/>
+    <circle cx="540" cy="365" r="6" fill="#FAF7F2" opacity="0.85"/>
+    <text x="325" y="440" font-size="14" font-weight="bold" fill="#2A1E14">Natte_seygoore_alpha</text>
+    <text x="325" y="458" font-size="12" fill="#5A4A3A">3 bandes · rugosité 0,8</text>
+    <text x="325" y="474" font-size="12" fill="#5A4A3A">Trous Voronoi→Alpha (gabarit)</text>
+  </g>
+
+  <text x="40" y="510" font-size="17" font-weight="bold" fill="#2A1E14">3. Cases en banco — galle</text>
+  <line x1="40" y1="518" x2="860" y2="518" stroke="#C9BBA8" stroke-width="1"/>
+
+  <g>
+    <rect x="40" y="532" width="250" height="90" fill="#C7A07B" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="40" y="640" font-size="14" font-weight="bold" fill="#2A1E14">Case_Banco_mur</text>
+    <text x="40" y="658" font-size="12" fill="#5A4A3A">Murs · rugosité 0,92</text>
+    <text x="40" y="674" font-size="12" fill="#5A4A3A">Grain large (paroi à la main)</text>
+  </g>
+  <g>
+    <rect x="325" y="532" width="250" height="90" fill="#D6C18A" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="325" y="640" font-size="14" font-weight="bold" fill="#2A1E14">Case_Paille_toit</text>
+    <text x="325" y="658" font-size="12" fill="#5A4A3A">Toit conique · rugosité 0,85</text>
+    <text x="325" y="674" font-size="12" fill="#5A4A3A">Grain fibreux</text>
+  </g>
+  <g>
+    <rect x="610" y="532" width="250" height="90" fill="#8F6F55" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="610" y="640" font-size="14" font-weight="bold" fill="#2A1E14">Case_Bois_porte</text>
+    <text x="610" y="658" font-size="12" fill="#5A4A3A">Porte · rugosité 0,75</text>
+    <text x="610" y="674" font-size="12" fill="#5A4A3A">Teinte cohérente avec le bois</text>
+  </g>
+
+  <text x="40" y="710" font-size="17" font-weight="bold" fill="#2A1E14">4. Troupeau — zébus</text>
+  <line x1="40" y1="718" x2="860" y2="718" stroke="#C9BBA8" stroke-width="1"/>
+
+  <g>
+    <rect x="40" y="732" width="250" height="90" fill="#EDE9E0" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="40" y="840" font-size="14" font-weight="bold" fill="#2A1E14">Zebu_Robe_Blanche</text>
+    <text x="40" y="858" font-size="12" fill="#5A4A3A">Corps, pattes, oreilles</text>
+    <text x="40" y="874" font-size="12" fill="#5A4A3A">Rugosité 0,6</text>
+  </g>
+  <g>
+    <rect x="325" y="732" width="250" height="90" fill="#B1805A" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="325" y="840" font-size="14" font-weight="bold" fill="#2A1E14">Zebu_Robe_Rousse</text>
+    <text x="325" y="858" font-size="12" fill="#5A4A3A">Variante robe</text>
+    <text x="325" y="874" font-size="12" fill="#5A4A3A">Rugosité 0,6</text>
+  </g>
+  <g>
+    <rect x="610" y="732" width="250" height="90" fill="#887B6C" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="610" y="840" font-size="14" font-weight="bold" fill="#2A1E14">Zebu_Corne</text>
+    <text x="610" y="858" font-size="12" fill="#5A4A3A">Cornes en lyre</text>
+    <text x="610" y="874" font-size="12" fill="#5A4A3A">Rugosité 0,35 (kératine lisse)</text>
+  </g>
+
+  <text x="40" y="910" font-size="17" font-weight="bold" fill="#2A1E14">5. Enclos &amp; paysage</text>
+  <line x1="40" y1="918" x2="860" y2="918" stroke="#C9BBA8" stroke-width="1"/>
+
+  <g>
+    <rect x="40" y="932" width="250" height="90" fill="#C28F6F" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="40" y="1040" font-size="14" font-weight="bold" fill="#2A1E14">Sol_Laterite</text>
+    <text x="40" y="1058" font-size="12" fill="#5A4A3A">Terrain · rugosité 0,95</text>
+    <text x="40" y="1074" font-size="12" fill="#5A4A3A">Irrégularités via Displace</text>
+  </g>
+  <g>
+    <rect x="325" y="932" width="250" height="90" fill="#988061" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="325" y="1040" font-size="14" font-weight="bold" fill="#2A1E14">Enclos_Bois_epineux</text>
+    <text x="325" y="1058" font-size="12" fill="#5A4A3A">Piquets, anneaux (hoggo)</text>
+    <text x="325" y="1074" font-size="12" fill="#5A4A3A">Rugosité 0,85</text>
+  </g>
+  <g>
+    <rect x="610" y="932" width="250" height="90" fill="#6C807B" stroke="#2A1E14" stroke-width="1.5"/>
+    <text x="610" y="1040" font-size="14" font-weight="bold" fill="#2A1E14">Eau_Mare</text>
+    <text x="610" y="1058" font-size="12" fill="#5A4A3A">Mare · rugosité 0,1</text>
+    <text x="610" y="1074" font-size="12" fill="#5A4A3A">Surface lisse</text>
+  </g>
+
+  <text x="450" y="1120" text-anchor="middle" font-size="11" fill="#8A7A68">Wuro &amp; Galle : L'Espace Peul entre Campement et Territoire — Livrable 2, module matériaux</text>
+  <text x="450" y="1138" text-anchor="middle" font-size="11" fill="#8A7A68">14 matériaux procéduraux (Principled BSDF), gabarits en attente de textures peintes/photographiées PBR complètes</text>
+</svg>

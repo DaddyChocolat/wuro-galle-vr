@@ -1,0 +1,61 @@
+<svg viewBox="0 0 900 700" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
+  <rect x="0" y="0" width="900" height="700" fill="#faf6ee"/>
+
+  <text x="450" y="35" text-anchor="middle" font-size="22" font-weight="bold" fill="#3a2c1a">Wuro — campement nomade (schéma de synthèse, non validé sur le terrain)</text>
+
+  <!-- Espace commun, limite floue (pas de mur) -->
+  <ellipse cx="400" cy="360" rx="260" ry="200" fill="#e8d9b5" opacity="0.35" stroke="#8a6a3a" stroke-width="2" stroke-dasharray="6 8"/>
+  <text x="400" y="595" text-anchor="middle" font-size="13" fill="#8a6a3a">espace commun du campement — pas de limite fixe (mobilité)</text>
+
+  <!-- Foyer central -->
+  <circle cx="400" cy="360" r="30" fill="#d9663b" stroke="#7a2f14" stroke-width="2"/>
+  <text x="400" y="366" text-anchor="middle" font-size="12" font-weight="bold" fill="#fff">foyer</text>
+
+  <!-- Suudu 1 -->
+  <circle cx="260" cy="290" r="55" fill="#c9a876" stroke="#6b5433" stroke-width="2"/>
+  <text x="260" y="286" text-anchor="middle" font-size="13" font-weight="bold" fill="#3a2c1a">suudu 1</text>
+  <text x="260" y="302" text-anchor="middle" font-size="10" fill="#3a2c1a">(buguuru)</text>
+  <!-- porte suudu1 orientee vers foyer -->
+  <line x1="300" y1="325" x2="330" y2="345" stroke="#3a2c1a" stroke-width="4"/>
+  <text x="335" y="335" font-size="9" fill="#6b5433">ouverture</text>
+
+  <!-- Suudu 2 -->
+  <circle cx="540" cy="290" r="55" fill="#c9a876" stroke="#6b5433" stroke-width="2"/>
+  <text x="540" y="286" text-anchor="middle" font-size="13" font-weight="bold" fill="#3a2c1a">suudu 2</text>
+  <text x="540" y="302" text-anchor="middle" font-size="10" fill="#3a2c1a">(buguuru)</text>
+  <line x1="500" y1="325" x2="470" y2="345" stroke="#3a2c1a" stroke-width="4"/>
+  <text x="440" y="335" font-size="9" fill="#6b5433">ouverture</text>
+
+  <!-- Zone de traite -->
+  <ellipse cx="400" cy="480" rx="90" ry="40" fill="#f0e6c8" stroke="#8a6a3a" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="400" y="476" text-anchor="middle" font-size="12" font-weight="bold" fill="#3a2c1a">zone de traite</text>
+  <text x="400" y="492" text-anchor="middle" font-size="10" fill="#3a2c1a">(activité de l'aube)</text>
+
+  <!-- Hoggo enclos troupeau -->
+  <rect x="640" y="440" width="200" height="130" rx="10" fill="none" stroke="#5a4a2a" stroke-width="3" stroke-dasharray="4 4"/>
+  <text x="740" y="430" text-anchor="middle" font-size="13" font-weight="bold" fill="#3a2c1a">hoggo</text>
+  <text x="740" y="500" text-anchor="middle" font-size="11" fill="#3a2c1a">enclos à bétail</text>
+  <text x="740" y="516" text-anchor="middle" font-size="10" fill="#3a2c1a">proche point d'eau / pâturage</text>
+
+  <!-- Fleche du camp vers pature/eau -->
+  <line x1="600" y1="500" x2="638" y2="500" stroke="#4b6b33" stroke-width="3" marker-end="url(#arrow)"/>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#4b6b33"/>
+    </marker>
+  </defs>
+
+  <!-- Nord hypothetique -->
+  <g transform="translate(90,80)">
+    <line x1="0" y1="40" x2="0" y2="0" stroke="#3a2c1a" stroke-width="2"/>
+    <polygon points="0,0 -6,12 6,12" fill="#3a2c1a"/>
+    <text x="0" y="58" text-anchor="middle" font-size="12" fill="#3a2c1a">N ?</text>
+    <text x="0" y="72" text-anchor="middle" font-size="9" fill="#8a6a3a">orientation non confirmée</text>
+  </g>
+
+  <!-- Legende -->
+  <g transform="translate(40,600)">
+    <line x1="0" y1="10" x2="24" y2="10" stroke="#3a2c1a" stroke-width="4"/>
+    <text x="30" y="14" font-size="12" fill="#3a2c1a">ouverture de suudu orientée vers le foyer commun (hypothèse)</text>
+  </g>
+</svg>

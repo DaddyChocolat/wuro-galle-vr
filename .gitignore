@@ -14,9 +14,19 @@ unity/*.suo
 unity/*.tmp
 
 # Blender
-blender/*.blend1
-blender/*.blend2
+blender/**/*.blend1
+blender/**/*.blend2
+__pycache__/
+*.pyc
 *~
+
+# Zotero (bibliothèque de travail — sources déjà citées dans docs/Livrable_1/corpus-documentaire.md,
+# pas la peine de committer les PDF/HTML bruts)
+docs/Livrable_1/Ma bibliothèque/
+
+# Builds (trop volumineux pour le dépôt — voir docs/Livrable_3/README.md, lien externe à la place)
+/Build/
+/Build-Windows.zip
 
 # OS
 .DS_Store
