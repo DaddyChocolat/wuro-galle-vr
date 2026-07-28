@@ -362,11 +362,15 @@ namespace WuroGalle.Editor
                 return;
             }
 
-            // Zone évitée (même convention que AjouterDecorSceneActive) : reste plate
-            // dans cette zone pour ne pas déformer le sol sous les structures existantes.
+            // Zone évitée = tout l'espace vie habitable (reste plate + sable piétiné dedans).
+            // Concession réutilise le même Paysage.glb que Campement (même Instancier(PathPaysage,
+            // Vector3.zero, ...) dans les deux) donc l'enclos/la mare sont aux MÊMES coordonnées
+            // locales dans les deux scènes (~x -9 à -12 d'après le placement du troupeau dans
+            // BuildCampement) — l'ancien rect de Concession (-6..6) les laissait dehors, d'où le
+            // sol qui restait sauvage/vallonné sous l'enclos. Élargi pour tout couvrir.
             Rect zoneEvitee = scene.name == "Campement"
                 ? new Rect(-13f, -4f, 22f, 12f)
-                : new Rect(-6f, -4f, 12f, 11f);
+                : new Rect(-14f, -5f, 20f, 13f);
 
             foreach (string nomAncien in new[] { "Montagnes_Lointaines", "Vegetation_Eparse", "Terrain_Environnement" })
             {
@@ -405,7 +409,7 @@ namespace WuroGalle.Editor
             // éviter le z-fighting avec le sol existant du Paysage.glb à l'intérieur de la zone évitée.
             terrainObj.transform.position = new Vector3(-taille / 2f, -0.1f, -taille / 2f);
 
-            RetenterSolZoneHabitee();
+            MasquerSolExistant();
 
             // Brouillard : reprend les réglages qu'avait CreerMontagnesLointaines (les
             // collines du Terrain jouent maintenant ce rôle d'horizon qui se fond dans le ciel).
@@ -423,38 +427,32 @@ namespace WuroGalle.Editor
         }
 
         /// <summary>
-        /// Retinte le sol existant du Paysage.glb (objet enfant "Terrain", la zone habitée
-        /// modélisée à la main sous les cases/l'enclos) avec la même texture de sable que
-        /// le nouveau Terrain — pour qu'elle se lise comme "la même terre, juste nivelée par
-        /// le passage des gens et du bétail" (demande explicite), et non comme un patch de
-        /// couleur qui jure. La délimitation vient du contraste plat/vallonné entre les deux
-        /// meshes, pas d'une différence de teinte.
+        /// Masque le rendu du sol existant du Paysage.glb (objet enfant "Terrain", un mesh
+        /// plat modélisé à la main sous une partie seulement des structures — pas toute la
+        /// zone habitée/l'enclos) pour laisser voir le nouveau Terrain à la place. Un seul
+        /// sol visible sur tout l'espace vie de la concession (cases, enclos, mare, dudal,
+        /// grenier) au lieu de deux meshes différents qui ne peuvent jamais se raccorder
+        /// parfaitement (shading différent même avec la même texture). Le Collider du
+        /// Paysage reste actif (redondant avec le TerrainCollider mais sans effet néfaste).
         /// </summary>
-        static void RetenterSolZoneHabitee()
+        static void MasquerSolExistant()
         {
             GameObject paysageGO = GameObject.Find("Paysage");
             if (paysageGO == null)
             {
-                Debug.LogWarning("[SceneBuilder] \"Paysage\" introuvable — sol de la zone habitée non retinté.");
+                Debug.LogWarning("[SceneBuilder] \"Paysage\" introuvable — ancien sol non masqué.");
                 return;
             }
 
             Transform solExistant = TrouverEnfant(paysageGO.transform, "Terrain");
             if (solExistant == null)
             {
-                Debug.LogWarning("[SceneBuilder] Enfant \"Terrain\" introuvable sous Paysage — sol de la zone habitée non retinté.");
+                Debug.LogWarning("[SceneBuilder] Enfant \"Terrain\" introuvable sous Paysage — ancien sol non masqué.");
                 return;
             }
 
             var renderer = solExistant.GetComponent<MeshRenderer>();
-            if (renderer == null) return;
-
-            Texture2D textureSable = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Terrains/Textures/Sol_Sable.png");
-            var matSol = new Material(Shader.Find("Standard"));
-            matSol.mainTexture = textureSable;
-            matSol.mainTextureScale = new Vector2(6f, 6f); // à réajuster à l'œil selon la taille réelle du mesh
-            matSol.SetFloat("_Glossiness", 0.15f);
-            renderer.sharedMaterial = matSol;
+            if (renderer != null) renderer.enabled = false;
         }
 
         /// <summary>Distance (monde) entre un point et le rectangle le plus proche ; 0 si le point est dedans.</summary>
