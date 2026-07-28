@@ -22,6 +22,7 @@ Exécution : onglet Scripting > Open > ce fichier > Run Script.
 
 import bpy
 import math
+import random
 
 # --- Dimensions réelles (mètres) ---
 RAYON_BASE = 1.3          # rayon au sol (diamètre ~2,6 m)
@@ -30,13 +31,20 @@ NOMBRE_ARCHES = 6          # branches arquées réparties autour du dôme
 EPAISSEUR_BRANCHE = 0.02   # rayon du tube = branche d'environ 4 cm de diamètre
 
 
-def creer_arche(nom, rayon, hauteur):
+def creer_arche(nom, rayon, hauteur, seed=0):
     """
     Une branche arquée = une courbe de Bézier à 3 points (départ au sol,
     sommet du dôme, arrivée au sol de l'autre côté). Les poignées 'AUTO'
     laissent Blender calculer une courbure lisse et naturelle entre eux,
     sans qu'on ait à la régler à la main.
+
+    Réalisme ajouté : léger jitter du point sommet (les 6 arches n'étaient
+    que la même courbe copiée-tournée — mécanique, pas organique) et un
+    rayon de tube qui varie le long de la branche (fuselage : plus épais à
+    la base qu'au sommet, comme une vraie branche coupée).
     """
+    rng = random.Random(seed)
+
     courbe_data = bpy.data.curves.new(nom, type='CURVE')
     courbe_data.dimensions = '3D'
     courbe_data.resolution_u = 8  # segments entre chaque point de contrôle
@@ -44,15 +52,20 @@ def creer_arche(nom, rayon, hauteur):
     spline = courbe_data.splines.new('BEZIER')
     spline.bezier_points.add(2)  # 1 point déjà présent + 2 ajoutés = 3 au total
 
-    points = [(-rayon, 0, 0), (0, 0, hauteur), (rayon, 0, 0)]
+    jitter_hauteur = rng.uniform(-0.05, 0.05)
+    jitter_sommet_xy = rng.uniform(-0.03, 0.03)
+    points = [(-rayon, 0, 0), (jitter_sommet_xy, 0, hauteur + jitter_hauteur), (rayon, 0, 0)]
+    rayons_relatifs = [1.15, 0.85, 1.0]  # base plus épaisse que le sommet
+
     for i, (x, y, z) in enumerate(points):
         p = spline.bezier_points[i]
         p.co = (x, y, z)
         p.handle_left_type = 'AUTO'
         p.handle_right_type = 'AUTO'
+        p.radius = rayons_relatifs[i] * rng.uniform(0.92, 1.08)
 
     courbe_data.bevel_depth = EPAISSEUR_BRANCHE
-    courbe_data.bevel_resolution = 3  # section du tube peu détaillée (branche vue de loin)
+    courbe_data.bevel_resolution = 4  # légèrement plus rond qu'avant (3)
 
     obj = bpy.data.objects.new(nom, courbe_data)
     bpy.context.collection.objects.link(obj)
@@ -69,7 +82,7 @@ def creer_armature_suudu():
     arches = []
     for i in range(NOMBRE_ARCHES):
         angle = math.pi * i / NOMBRE_ARCHES
-        arche = creer_arche(f"Suudu_Arche_{i + 1}", RAYON_BASE, HAUTEUR_DOME)
+        arche = creer_arche(f"Suudu_Arche_{i + 1}", RAYON_BASE, HAUTEUR_DOME, seed=i)
         arche.rotation_euler = (0, 0, angle)
         arches.append(arche)
     return arches

@@ -1,7 +1,7 @@
 """
 Case en banco — module réutilisable pour la concession (galle)
 
-Deux nouvelles techniques par rapport aux scripts précédents :
+Techniques :
 
 - Solidify (modificateur) : donne une épaisseur réelle à une surface fine.
   Le mur est d'abord créé comme un simple tube creux (une paroi sans
@@ -14,16 +14,34 @@ Deux nouvelles techniques par rapport aux scripts précédents :
   positionnée à l'emplacement de la porte, est soustraite du mur plein pour
   y creuser une ouverture basse.
 
+- Displace (modificateur) : déforme la GÉOMÉTRIE réelle (pas juste l'ombrage
+  comme un Bump shader) à partir d'une texture procédurale (Clouds). Contrai-
+  rement au Bump, ça se voit sur la silhouette et au rasant — nécessite une
+  subdivision préalable (bpy.ops.mesh.subdivide) pour avoir assez de
+  géométrie à déformer.
+
+- Bevel (modificateur) : arrondit légèrement les arêtes vives. Un bord
+  mathématiquement parfait se voit immédiatement comme "fabriqué en CAO" ;
+  même un arrondi de quelques millimètres suffit à casser cet effet.
+
+- vertex_random (opérateur) : jitter aléatoire de certains sommets (ici
+  l'anneau de base du toit) pour casser un cercle parfait — silhouette de
+  chaume irrégulière plutôt qu'un cône géométrique net.
+
 Une case = 3 objets distincts (mur, toit, porte), pour permettre des
 matériaux différents ensuite (banco / paille / bois). Le script génère 3
 variantes légèrement différentes (rayon et hauteur), comme prévu pour la
 concession réduite (3 cases + dudal + 1 grenier).
 
 Exécution : onglet Scripting > Open > ce fichier > Run Script.
+Vérification après coup : lis le rapport de triangles imprimé en Console
+(budget max 20 000 triangles pour tout le module) et regarde le résultat en
+mode d'affichage "Rendered" (pas Solid) pour juger du relief réel.
 """
 
 import bpy
 import math
+import bmesh
 
 EPAISSEUR_MUR = 0.15
 LARGEUR_PORTE = 0.6
@@ -39,8 +57,39 @@ VARIANTES_CASES = [
 ]
 
 
-def creer_mur(nom, rayon, hauteur, decalage_x):
-    """Tube creux + Solidify (épaisseur) + Boolean (porte découpée)."""
+def ajouter_displacement(obj, force, echelle, seed):
+    """
+    Relief de surface réel (géométrie déformée, pas un Bump shader) via une
+    texture procédurale Clouds. 'force' est en mètres (amplitude du relief),
+    'echelle' contrôle la taille des irrégularités (plus petit = grain plus
+    fin), 'seed' évite que toutes les variantes aient exactement le même motif.
+    """
+    tex = bpy.data.textures.new(f"{obj.name}_bruit_disp", type='CLOUDS')
+    tex.noise_scale = echelle
+    tex.noise_depth = 2
+    tex.noise_basis = 'ORIGINAL_PERLIN'
+
+    mod = obj.modifiers.new(name="Relief", type='DISPLACE')
+    mod.texture = tex
+    mod.strength = force
+    mod.mid_level = 0.5
+    mod.texture_coords = 'GLOBAL'  # évite un motif qui suit la déformation d'un coup
+
+    return mod
+
+
+def ajouter_bevel(obj, largeur=0.012, segments=2):
+    """Arrondi léger des arêtes — évite l'effet "CAO" d'arêtes parfaitement nettes."""
+    mod = obj.modifiers.new(name="Arrondi", type='BEVEL')
+    mod.width = largeur
+    mod.segments = segments
+    mod.limit_method = 'ANGLE'
+    mod.angle_limit = math.radians(45)
+    return mod
+
+
+def creer_mur(nom, rayon, hauteur, decalage_x, seed=0):
+    """Tube creux, subdivisé + déformé (relief réel), puis Solidify (épaisseur) + Boolean (porte)."""
     bpy.ops.mesh.primitive_cylinder_add(
         vertices=24,
         radius=rayon,
@@ -55,16 +104,22 @@ def creer_mur(nom, rayon, hauteur, decalage_x):
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_mode(type='FACE')
     bpy.ops.mesh.select_all(action='DESELECT')
-    import bmesh as _bmesh
-    bm = _bmesh.from_edit_mesh(mur.data)
+    bm = bmesh.from_edit_mesh(mur.data)
     bm.faces.ensure_lookup_table()
     for f in bm.faces:
         # Les faces de bouchon (haut/bas) ont une normale quasi verticale.
         if abs(f.normal.z) > 0.9:
             f.select = True
-    _bmesh.update_edit_mesh(mur.data)
+    bmesh.update_edit_mesh(mur.data)
     bpy.ops.mesh.delete(type='FACE')
+
+    # Subdivision : la paroi n'avait qu'un seul niveau vertical (24 quads) —
+    # pas assez de géométrie pour qu'un vrai relief (Displace) se voie.
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.subdivide(number_cuts=2)
     bpy.ops.object.mode_set(mode='OBJECT')
+
+    deplacement = ajouter_displacement(mur, force=0.035, echelle=3.0, seed=seed)
 
     solidify = mur.modifiers.new(name="Epaisseur", type='SOLIDIFY')
     solidify.thickness = EPAISSEUR_MUR
@@ -82,19 +137,27 @@ def creer_mur(nom, rayon, hauteur, decalage_x):
     boolean.operation = 'DIFFERENCE'
     boolean.object = cutter
 
-    # Applique les deux modificateurs dans l'ordre (épaisseur d'abord, pour
-    # que la découpe de porte traverse un mur déjà épaissi).
+    bevel = ajouter_bevel(mur, largeur=0.012)
+
+    # Applique tous les modificateurs dans l'ordre de la pile (relief, puis
+    # épaisseur, puis découpe de porte, puis arrondi des arêtes).
     bpy.context.view_layer.objects.active = mur
+    bpy.ops.object.modifier_apply(modifier=deplacement.name)
     bpy.ops.object.modifier_apply(modifier=solidify.name)
     bpy.ops.object.modifier_apply(modifier=boolean.name)
+    bpy.ops.object.modifier_apply(modifier=bevel.name)
 
     bpy.data.objects.remove(cutter, do_unlink=True)
 
     return mur
 
 
-def creer_toit(nom, rayon, hauteur_mur, hauteur_toit, decalage_x):
-    """Toit conique, légèrement plus large que le mur pour former un avant-toit."""
+def creer_toit(nom, rayon, hauteur_mur, hauteur_toit, decalage_x, seed=0):
+    """
+    Toit conique, légèrement plus large que le mur pour former un avant-toit.
+    Bord de base irrégulier (frange de chaume, pas un cercle parfait) +
+    relief de surface réel.
+    """
     bpy.ops.mesh.primitive_cone_add(
         vertices=24,
         radius1=rayon * 1.15,
@@ -104,11 +167,39 @@ def creer_toit(nom, rayon, hauteur_mur, hauteur_toit, decalage_x):
     )
     toit = bpy.context.active_object
     toit.name = nom
+
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.subdivide(number_cuts=2)  # résolution nécessaire pour le relief + la frange
+
+    # Frange irrégulière : jitter aléatoire de l'anneau de base (bord du
+    # toit), pour casser le cercle parfait — silhouette de chaume, pas un
+    # cône CAO. Sélectionne uniquement les sommets les plus bas.
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bm = bmesh.from_edit_mesh(toit.data)
+    bm.verts.ensure_lookup_table()
+    z_min = min(v.co.z for v in bm.verts)
+    for v in bm.verts:
+        v.select = abs(v.co.z - z_min) < 0.02
+    bmesh.update_edit_mesh(toit.data)
+
+    bpy.ops.transform.vertex_random(offset=0.06, uniform=0.0, normal=0.0, seed=seed)
+
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    deplacement = ajouter_displacement(toit, force=0.05, echelle=4.0, seed=seed + 10)
+    bevel = ajouter_bevel(toit, largeur=0.01)
+
+    bpy.context.view_layer.objects.active = toit
+    bpy.ops.object.modifier_apply(modifier=deplacement.name)
+    bpy.ops.object.modifier_apply(modifier=bevel.name)
+
     return toit
 
 
 def creer_porte(nom, rayon, decalage_x):
-    """Porte basse en bois : un simple panneau plat dans l'ouverture."""
+    """Porte basse en bois : un panneau plat, arêtes légèrement arrondies."""
     bpy.ops.mesh.primitive_cube_add(
         size=1,
         location=(decalage_x, rayon + EPAISSEUR_MUR * 0.5, HAUTEUR_PORTE / 2),
@@ -116,12 +207,22 @@ def creer_porte(nom, rayon, decalage_x):
     porte = bpy.context.active_object
     porte.name = nom
     porte.scale = (LARGEUR_PORTE * 0.9, 0.03, HAUTEUR_PORTE * 0.95)
+
+    # Applique l'échelle sur la géométrie AVANT le Bevel : sinon la largeur
+    # du biseau serait déformée de façon non-uniforme par le scale (surtout
+    # sur l'axe Y, très fin) et pourrait créer une géométrie dégénérée.
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+
+    bevel = ajouter_bevel(porte, largeur=0.008, segments=2)
+    bpy.context.view_layer.objects.active = porte
+    bpy.ops.object.modifier_apply(modifier=bevel.name)
+
     return porte
 
 
 def creer_case(index, rayon, hauteur_mur, hauteur_toit, decalage_x):
-    mur = creer_mur(f"Case{index}_Mur", rayon, hauteur_mur, decalage_x)
-    toit = creer_toit(f"Case{index}_Toit", rayon, hauteur_mur, hauteur_toit, decalage_x)
+    mur = creer_mur(f"Case{index}_Mur", rayon, hauteur_mur, decalage_x, seed=index)
+    toit = creer_toit(f"Case{index}_Toit", rayon, hauteur_mur, hauteur_toit, decalage_x, seed=index)
     porte = creer_porte(f"Case{index}_Porte", rayon, decalage_x)
     return [mur, toit, porte]
 
