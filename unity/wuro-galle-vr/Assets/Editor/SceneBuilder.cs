@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Rendering.PostProcessing;
 
 namespace WuroGalle.Editor
 {
@@ -75,6 +76,112 @@ namespace WuroGalle.Editor
             }
 
             EditorSceneManager.SaveScene(scene);
+        }
+
+        /// <summary>
+        /// Ajoute un Post-Process Volume global (Bloom, Color Grading, Ambient Occlusion,
+        /// Vignette) + anti-aliasing FXAA sur la caméra, à la scène ACTUELLEMENT OUVERTE.
+        /// Non destructif : peut être relancé sans dupliquer quoi que ce soit (réutilise le
+        /// même profil et le même volume s'ils existent déjà).
+        /// Nécessite que le joueur (CreerJoueur) soit déjà dans la scène.
+        /// </summary>
+        [MenuItem("Wuro&Galle/Ajouter post-processing à la scène active")]
+        public static void AjouterPostProcessingSceneActive()
+        {
+            Scene scene = EditorSceneManager.GetActiveScene();
+            if (scene.name != "Campement" && scene.name != "Concession")
+            {
+                Debug.LogWarning($"[SceneBuilder] Scène active '{scene.name}' non reconnue " +
+                    "(attendu \"Campement\" ou \"Concession\") — rien n'a été ajouté.");
+                return;
+            }
+
+            GameObject camObj = GameObject.Find("CameraJoueur");
+            if (camObj == null)
+            {
+                Debug.LogError("[SceneBuilder] CameraJoueur introuvable — ajoute d'abord le joueur (CreerJoueur) à la scène.");
+                return;
+            }
+
+            // Layer "Default" (0) pour le volume global : pas besoin de créer un layer custom.
+            PostProcessLayer ppLayer = camObj.GetComponent<PostProcessLayer>();
+            if (ppLayer == null) ppLayer = camObj.AddComponent<PostProcessLayer>();
+            ppLayer.volumeLayer = 1 << 0;
+            ppLayer.antialiasingMode = PostProcessLayer.Antialiasing.FastApproximateAntialiasing;
+
+            if (!AssetDatabase.IsValidFolder("Assets/Settings"))
+                AssetDatabase.CreateFolder("Assets", "Settings");
+
+            const string cheminProfil = "Assets/Settings/Profil_PostProcess.asset";
+            PostProcessProfile profil = AssetDatabase.LoadAssetAtPath<PostProcessProfile>(cheminProfil);
+            if (profil == null)
+            {
+                profil = ScriptableObject.CreateInstance<PostProcessProfile>();
+                AssetDatabase.CreateAsset(profil, cheminProfil);
+            }
+
+            ConfigurerBloom(profil);
+            ConfigurerColorGrading(profil);
+            ConfigurerAmbientOcclusion(profil);
+            ConfigurerVignette(profil);
+            EditorUtility.SetDirty(profil);
+            AssetDatabase.SaveAssets();
+
+            GameObject existant = GameObject.Find("Global_PostProcess_Volume");
+            if (existant != null) Object.DestroyImmediate(existant);
+
+            GameObject volumeObj = new GameObject("Global_PostProcess_Volume");
+            volumeObj.layer = 0;
+            PostProcessVolume volume = volumeObj.AddComponent<PostProcessVolume>();
+            volume.isGlobal = true;
+            volume.sharedProfile = profil;
+
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[SceneBuilder] Post-processing ajouté à la scène active (voir Assets/Settings/Profil_PostProcess.asset).");
+        }
+
+        /// <summary>Récupère un module d'effet du profil s'il existe déjà, sinon l'ajoute (évite les doublons si on relance le menu).</summary>
+        private static T ObtenirOuAjouterSettings<T>(PostProcessProfile profil) where T : PostProcessEffectSettings
+        {
+            if (!profil.TryGetSettings<T>(out T settings))
+                settings = profil.AddSettings<T>();
+            return settings;
+        }
+
+        private static void ConfigurerBloom(PostProcessProfile profil)
+        {
+            var bloom = ObtenirOuAjouterSettings<Bloom>(profil);
+            bloom.enabled.overrideState = true; bloom.enabled.value = true;
+            bloom.intensity.overrideState = true; bloom.intensity.value = 0.3f;
+            bloom.threshold.overrideState = true; bloom.threshold.value = 1.1f;
+            bloom.softKnee.overrideState = true; bloom.softKnee.value = 0.5f;
+        }
+
+        private static void ConfigurerColorGrading(PostProcessProfile profil)
+        {
+            var cg = ObtenirOuAjouterSettings<ColorGrading>(profil);
+            cg.enabled.overrideState = true; cg.enabled.value = true;
+            cg.tonemapper.overrideState = true; cg.tonemapper.value = Tonemapper.ACES;
+            // Légèrement chaud (ambiance sahélienne, pas un simple filtre "carte postale")
+            cg.temperature.overrideState = true; cg.temperature.value = 8f;
+            cg.saturation.overrideState = true; cg.saturation.value = 5f;
+            cg.contrast.overrideState = true; cg.contrast.value = 5f;
+        }
+
+        private static void ConfigurerAmbientOcclusion(PostProcessProfile profil)
+        {
+            var ao = ObtenirOuAjouterSettings<AmbientOcclusion>(profil);
+            ao.enabled.overrideState = true; ao.enabled.value = true;
+            ao.intensity.overrideState = true; ao.intensity.value = 0.4f;
+            ao.thicknessModifier.overrideState = true; ao.thicknessModifier.value = 1f;
+        }
+
+        private static void ConfigurerVignette(PostProcessProfile profil)
+        {
+            var vig = ObtenirOuAjouterSettings<Vignette>(profil);
+            vig.enabled.overrideState = true; vig.enabled.value = true;
+            vig.intensity.overrideState = true; vig.intensity.value = 0.25f;
+            vig.smoothness.overrideState = true; vig.smoothness.value = 0.4f;
         }
 
         /// <summary>Supprime l'objet du même nom s'il existe déjà, puis recrée la source audio.</summary>
