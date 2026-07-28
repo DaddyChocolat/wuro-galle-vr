@@ -115,19 +115,41 @@ def creer_materiau_alpha():
     principled.location = (300, 0)
     principled.inputs["Base Color"].default_value = (0.62, 0.48, 0.24, 1.0)  # doré paille
     principled.inputs["Roughness"].default_value = 0.8
+    if "Anisotropic" in principled.inputs:
+        principled.inputs["Anisotropic"].default_value = 0.3  # fibres tressées, pas mat uniforme
 
     voronoi = nodes.new("ShaderNodeTexVoronoi")
-    voronoi.location = (-200, -200)
+    voronoi.location = (-200, -300)
     voronoi.inputs["Scale"].default_value = 25.0  # densité du motif de trous
 
-    rampe = nodes.new("ShaderNodeValToRGB")
-    rampe.location = (50, -200)
+    rampe_alpha = nodes.new("ShaderNodeValToRGB")
+    rampe_alpha.location = (50, -300)
     # Ajuste le point de coupure : au-delà de ~0.4, opaque ; en-dessous, trou.
-    rampe.color_ramp.elements[0].position = 0.35
-    rampe.color_ramp.elements[1].position = 0.45
+    rampe_alpha.color_ramp.elements[0].position = 0.35
+    rampe_alpha.color_ramp.elements[1].position = 0.45
 
-    links.new(voronoi.outputs["Distance"], rampe.inputs["Fac"])
-    links.new(rampe.outputs["Color"], principled.inputs["Alpha"])
+    # Variation de couleur (brins plus foncés/clairs) — même logique que les
+    # autres matériaux du projet, pour casser l'aplat uniforme d'avant.
+    bruit_couleur = nodes.new("ShaderNodeTexNoise")
+    bruit_couleur.location = (-400, 200)
+    bruit_couleur.inputs["Scale"].default_value = 20.0
+
+    rampe_couleur = nodes.new("ShaderNodeValToRGB")
+    rampe_couleur.location = (-150, 200)
+    rampe_couleur.color_ramp.elements[0].position = 0.35
+    rampe_couleur.color_ramp.elements[1].position = 0.65
+
+    mix_couleur = nodes.new("ShaderNodeMixRGB")
+    mix_couleur.location = (100, 200)
+    mix_couleur.inputs["Color1"].default_value = (0.62, 0.48, 0.24, 1.0)
+    mix_couleur.inputs["Color2"].default_value = (0.48, 0.36, 0.16, 1.0)  # brins plus vieillis
+
+    links.new(bruit_couleur.outputs["Fac"], rampe_couleur.inputs["Fac"])
+    links.new(rampe_couleur.outputs["Color"], mix_couleur.inputs["Fac"])
+    links.new(mix_couleur.outputs["Color"], principled.inputs["Base Color"])
+
+    links.new(voronoi.outputs["Distance"], rampe_alpha.inputs["Fac"])
+    links.new(rampe_alpha.outputs["Color"], principled.inputs["Alpha"])
     links.new(principled.outputs["BSDF"], sortie.inputs["Surface"])
 
     return mat
