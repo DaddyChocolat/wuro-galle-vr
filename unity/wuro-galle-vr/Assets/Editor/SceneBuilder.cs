@@ -342,6 +342,59 @@ namespace WuroGalle.Editor
         }
 
         /// <summary>
+        /// Retour en arrière : supprime le Terrain_Environnement de la scène active et
+        /// restaure le matériau d'origine ("Sol_Laterite", importé depuis Paysage.glb) sur
+        /// le sol existant. Ne recrée PAS les anciens cônes de décor (jugés "basiques",
+        /// abandon assumé — priorité donnée à l'amélioration des habitations à la place).
+        /// </summary>
+        [MenuItem("Wuro&Galle/Revenir en arrière : supprimer le Terrain de la scène active")]
+        public static void SupprimerTerrainSceneActive()
+        {
+            Scene scene = EditorSceneManager.GetActiveScene();
+            if (scene.name != "Campement" && scene.name != "Concession")
+            {
+                Debug.LogWarning($"[SceneBuilder] Scène active '{scene.name}' non reconnue — rien à supprimer.");
+                return;
+            }
+
+            var terrainObj = TrouverDansScene(scene, "Terrain_Environnement");
+            if (terrainObj != null) Object.DestroyImmediate(terrainObj);
+
+            GameObject paysageGO = TrouverDansScene(scene, "Paysage");
+            if (paysageGO != null)
+            {
+                Transform solExistant = TrouverEnfant(paysageGO.transform, "Terrain");
+                if (solExistant != null)
+                {
+                    var renderer = solExistant.GetComponent<MeshRenderer>();
+                    if (renderer != null)
+                    {
+                        var materiauOriginal = TrouverMateriauParNomDansAsset(PathPaysage, "Sol_Laterite");
+                        if (materiauOriginal != null)
+                            renderer.sharedMaterial = materiauOriginal;
+                        else
+                            Debug.LogWarning("[SceneBuilder] Matériau d'origine \"Sol_Laterite\" introuvable dans Paysage.glb.");
+                    }
+                }
+            }
+
+            RenderSettings.fog = false; // brouillard ajouté spécifiquement pour le Terrain
+
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log($"[SceneBuilder] Terrain supprimé de la scène {scene.name}, sol d'origine restauré.");
+        }
+
+        /// <summary>Cherche un Material par nom parmi les sous-assets d'un asset importé (ex. un .glb).</summary>
+        static Material TrouverMateriauParNomDansAsset(string cheminAsset, string nomMateriau)
+        {
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(cheminAsset))
+            {
+                if (asset is Material mat && mat.name == nomMateriau) return mat;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Remplace le décor "faux" (cônes Montagnes_Lointaines + Buisson_Eparse) par un
         /// vrai Unity Terrain : relief sculpté (dunes discrètes + collines à l'horizon au
         /// lieu de cônes identiques répétés) et deux textures procédurales mélangées
