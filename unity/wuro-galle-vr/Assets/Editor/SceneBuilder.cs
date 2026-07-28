@@ -430,14 +430,17 @@ namespace WuroGalle.Editor
 
         /// <summary>
         /// Hauteurs normalisées (0..1, relatives à data.size.y) : plat dans la zone évitée
-        /// (ne déforme pas le sol sous les structures), dunes discrètes juste après, puis
-        /// collines qui montent progressivement vers l'horizon (remplace l'anneau de cônes).
+        /// (ne déforme pas le sol sous les structures), puis relief qui monte en continu
+        /// (courbe quadratique, jamais de plateau parfaitement plat) jusqu'au bord réel du
+        /// Terrain, avec du bruit partout (même sur les hauteurs) pour éviter toute surface
+        /// plane qui accrocherait la lumière rasante du soleil en une ligne dure à l'horizon
+        /// (bug observé : un plateau plat trop tôt créait exactement cette ligne).
         /// </summary>
         static float[,] GenererHauteursTerrain(int resolution, float taille, Rect zoneEvitee)
         {
             var hauteurs = new float[resolution, resolution];
-            const float marge = 3f;   // transition douce à la sortie de la zone évitée
-            const float portee = 65f; // distance sur laquelle la colline monte jusqu'à hauteurMax
+            const float marge = 3f;              // transition douce à la sortie de la zone évitée
+            float porteeTotale = taille * 0.42f;  // la montée s'étale jusque tout près du bord réel du Terrain
 
             for (int iz = 0; iz < resolution; iz++)
             {
@@ -453,11 +456,16 @@ namespace WuroGalle.Editor
                     }
 
                     float distance = DistanceHorsRect(worldX, worldZ, zoneEvitee);
-                    float montee = Mathf.Clamp01((distance - marge) / portee);
-                    float dunes = Mathf.PerlinNoise((worldX + 1000f) * 0.03f, (worldZ + 1000f) * 0.03f) * 0.12f * montee;
-                    float colline = montee * montee * 0.7f; // accélère vers l'horizon plutôt qu'une rampe linéaire
+                    float t = Mathf.Clamp01((distance - marge) / porteeTotale);
+                    float montee = t * t; // montée continue jusqu'au bord, pas de palier plat
 
-                    hauteurs[iz, ix] = Mathf.Clamp01(dunes + colline);
+                    float bruitGrand = Mathf.PerlinNoise((worldX + 1000f) * 0.03f, (worldZ + 1000f) * 0.03f);
+                    float bruitFin = Mathf.PerlinNoise((worldX + 1000f) * 0.15f, (worldZ + 1000f) * 0.15f);
+                    float bruit = bruitGrand * 0.7f + bruitFin * 0.3f;
+
+                    // Le bruit s'applique partout (pas seulement en altitude) pour qu'aucune
+                    // zone ne soit parfaitement plane, mais reste discret près du campement.
+                    hauteurs[iz, ix] = Mathf.Clamp01(montee * 0.75f + bruit * 0.2f * (0.3f + montee));
                 }
             }
             return hauteurs;
