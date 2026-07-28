@@ -341,6 +341,201 @@ namespace WuroGalle.Editor
             Debug.Log($"[SceneBuilder] Décor ajouté à la scène {scene.name}.");
         }
 
+        /// <summary>
+        /// Remplace le décor "faux" (cônes Montagnes_Lointaines + Buisson_Eparse) par un
+        /// vrai Unity Terrain : relief sculpté (dunes discrètes + collines à l'horizon au
+        /// lieu de cônes identiques répétés) et deux textures procédurales mélangées
+        /// (sable / terre sèche clairsemée), sans dépendance à un asset externe téléchargé
+        /// (pas de question de licence). Non destructif envers les cases/galle/mobilier
+        /// déjà en place : ne touche que les objets Montagnes_Lointaines, Vegetation_Eparse
+        /// et Terrain_Environnement (supprimés puis recréés à chaque appel).
+        /// Nécessite les modules Unity "com.unity.modules.terrain" / "terrainphysics"
+        /// (déjà présents dans Packages/manifest.json).
+        /// </summary>
+        [MenuItem("Wuro&Galle/Ajouter un Terrain (sol + relief) à la scène active")]
+        public static void AjouterTerrainSceneActive()
+        {
+            Scene scene = EditorSceneManager.GetActiveScene();
+            if (scene.name != "Campement" && scene.name != "Concession")
+            {
+                Debug.LogWarning($"[SceneBuilder] Scène active '{scene.name}' non reconnue — rien n'a été ajouté.");
+                return;
+            }
+
+            // Zone évitée (même convention que AjouterDecorSceneActive) : reste plate
+            // dans cette zone pour ne pas déformer le sol sous les structures existantes.
+            Rect zoneEvitee = scene.name == "Campement"
+                ? new Rect(-13f, -4f, 22f, 12f)
+                : new Rect(-6f, -4f, 12f, 11f);
+
+            foreach (string nomAncien in new[] { "Montagnes_Lointaines", "Vegetation_Eparse", "Terrain_Environnement" })
+            {
+                var ancien = GameObject.Find(nomAncien);
+                if (ancien != null) Object.DestroyImmediate(ancien);
+            }
+
+            const int resolution = 129;   // léger, largement suffisant pour un relief discret
+            const float taille = 200f;    // couvre largement au-delà de l'ancien anneau de cônes (45-65 m)
+            const float hauteurMax = 12f;
+
+            var data = new TerrainData();
+            data.heightmapResolution = resolution;
+            data.alphamapResolution = 256; // valeur par défaut trop basse (32) => mélange de textures trop pixelisé
+            data.size = new Vector3(taille, hauteurMax, taille);
+            data.SetHeights(0, 0, GenererHauteursTerrain(resolution, taille, zoneEvitee));
+
+            var coucheSable = CreerOuChargerCoucheTerrain("Sol_Sable", new Color(0.76f, 0.68f, 0.52f), new Color(0.62f, 0.54f, 0.40f));
+            var coucheTerreSeche = CreerOuChargerCoucheTerrain("Sol_TerreSeche", new Color(0.35f, 0.32f, 0.18f), new Color(0.22f, 0.24f, 0.12f));
+            data.terrainLayers = new[] { coucheSable, coucheTerreSeche };
+            data.SetAlphamaps(0, 0, GenererAlphamapTerrain(data.alphamapWidth, data.alphamapHeight, taille, zoneEvitee));
+
+            if (!AssetDatabase.IsValidFolder("Assets/Terrains"))
+                AssetDatabase.CreateFolder("Assets", "Terrains");
+            string cheminData = $"Assets/Terrains/TerrainData_{scene.name}.asset";
+            AssetDatabase.DeleteAsset(cheminData); // repart propre si on relance le menu
+            AssetDatabase.CreateAsset(data, cheminData);
+
+            GameObject terrainObj = Terrain.CreateTerrainGameObject(data);
+            terrainObj.name = "Terrain_Environnement";
+            // Centré sur l'origine (comme le reste de la scène), légèrement sous 0 pour
+            // éviter le z-fighting avec le sol existant du Paysage.glb à l'intérieur de la zone évitée.
+            terrainObj.transform.position = new Vector3(-taille / 2f, -0.1f, -taille / 2f);
+
+            // Brouillard : reprend les réglages qu'avait CreerMontagnesLointaines (les
+            // collines du Terrain jouent maintenant ce rôle d'horizon qui se fond dans le ciel).
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = new Color(0.75f, 0.78f, 0.82f);
+            RenderSettings.fogStartDistance = 25f;
+            RenderSettings.fogEndDistance = 90f;
+
+            AdoucirTexturesParticulesFeu();
+
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log($"[SceneBuilder] Terrain ajouté à la scène {scene.name} (remplace les anciens cônes de décor).");
+        }
+
+        /// <summary>Distance (monde) entre un point et le rectangle le plus proche ; 0 si le point est dedans.</summary>
+        static float DistanceHorsRect(float x, float z, Rect rect)
+        {
+            float dx = Mathf.Max(rect.xMin - x, 0f, x - rect.xMax);
+            float dz = Mathf.Max(rect.yMin - z, 0f, z - rect.yMax);
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
+        /// <summary>
+        /// Hauteurs normalisées (0..1, relatives à data.size.y) : plat dans la zone évitée
+        /// (ne déforme pas le sol sous les structures), dunes discrètes juste après, puis
+        /// collines qui montent progressivement vers l'horizon (remplace l'anneau de cônes).
+        /// </summary>
+        static float[,] GenererHauteursTerrain(int resolution, float taille, Rect zoneEvitee)
+        {
+            var hauteurs = new float[resolution, resolution];
+            const float marge = 3f;   // transition douce à la sortie de la zone évitée
+            const float portee = 65f; // distance sur laquelle la colline monte jusqu'à hauteurMax
+
+            for (int iz = 0; iz < resolution; iz++)
+            {
+                for (int ix = 0; ix < resolution; ix++)
+                {
+                    float worldX = (ix / (float)(resolution - 1)) * taille - taille / 2f;
+                    float worldZ = (iz / (float)(resolution - 1)) * taille - taille / 2f;
+
+                    if (zoneEvitee.Contains(new Vector2(worldX, worldZ)))
+                    {
+                        hauteurs[iz, ix] = 0f;
+                        continue;
+                    }
+
+                    float distance = DistanceHorsRect(worldX, worldZ, zoneEvitee);
+                    float montee = Mathf.Clamp01((distance - marge) / portee);
+                    float dunes = Mathf.PerlinNoise((worldX + 1000f) * 0.03f, (worldZ + 1000f) * 0.03f) * 0.12f * montee;
+                    float colline = montee * montee * 0.7f; // accélère vers l'horizon plutôt qu'une rampe linéaire
+
+                    hauteurs[iz, ix] = Mathf.Clamp01(dunes + colline);
+                }
+            }
+            return hauteurs;
+        }
+
+        /// <summary>
+        /// Mélange sable (majoritaire) / terre sèche clairsemée (poches irrégulières via
+        /// bruit de Perlin, un peu plus dense juste à la sortie de la zone habitée).
+        /// </summary>
+        static float[,,] GenererAlphamapTerrain(int largeur, int hauteur, float taille, Rect zoneEvitee)
+        {
+            var carte = new float[hauteur, largeur, 2];
+            for (int iz = 0; iz < hauteur; iz++)
+            {
+                for (int ix = 0; ix < largeur; ix++)
+                {
+                    float worldX = (ix / (float)(largeur - 1)) * taille - taille / 2f;
+                    float worldZ = (iz / (float)(hauteur - 1)) * taille - taille / 2f;
+
+                    float bruit = Mathf.PerlinNoise((worldX + 500f) * 0.06f, (worldZ + 500f) * 0.06f);
+                    float distance = DistanceHorsRect(worldX, worldZ, zoneEvitee);
+                    float poidsTerreSeche = Mathf.Clamp01(bruit - distance / 80f);
+
+                    carte[iz, ix, 1] = poidsTerreSeche;
+                    carte[iz, ix, 0] = 1f - poidsTerreSeche;
+                }
+            }
+            return carte;
+        }
+
+        /// <summary>
+        /// Texture procédurale (bruit de Perlin) pour une couche de Terrain — évite de
+        /// dépendre d'une texture externe téléchargée (question de licence/source, voir
+        /// note-ethique.md) alors qu'on n'a pas encore de vraie texture PBR sable/terre.
+        /// À remplacer plus tard par une vraie texture si le temps le permet.
+        /// </summary>
+        static Texture2D CreerTextureProceduraleSol(int taille, Color baseColor, Color variationColor)
+        {
+            var tex = new Texture2D(taille, taille, TextureFormat.RGBA32, false);
+            for (int y = 0; y < taille; y++)
+            {
+                for (int x = 0; x < taille; x++)
+                {
+                    float n = Mathf.PerlinNoise(x * 0.08f, y * 0.08f);
+                    tex.SetPixel(x, y, Color.Lerp(baseColor, variationColor, n));
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        /// <summary>Crée (ou réutilise si déjà présent) un TerrainLayer avec sa texture procédurale associée.</summary>
+        static TerrainLayer CreerOuChargerCoucheTerrain(string nomCouche, Color baseColor, Color variationColor)
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Terrains"))
+                AssetDatabase.CreateFolder("Assets", "Terrains");
+            if (!AssetDatabase.IsValidFolder("Assets/Terrains/Textures"))
+                AssetDatabase.CreateFolder("Assets/Terrains", "Textures");
+
+            string cheminTexture = $"Assets/Terrains/Textures/{nomCouche}.png";
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(cheminTexture) == null)
+            {
+                Texture2D tex = CreerTextureProceduraleSol(256, baseColor, variationColor);
+                System.IO.File.WriteAllBytes(cheminTexture, tex.EncodeToPNG());
+                AssetDatabase.ImportAsset(cheminTexture);
+            }
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(cheminTexture);
+
+            string cheminLayer = $"Assets/Terrains/{nomCouche}.terrainlayer";
+            TerrainLayer couche = AssetDatabase.LoadAssetAtPath<TerrainLayer>(cheminLayer);
+            if (couche == null)
+            {
+                couche = new TerrainLayer { diffuseTexture = texture, tileSize = new Vector2(8f, 8f) };
+                AssetDatabase.CreateAsset(couche, cheminLayer);
+            }
+            else
+            {
+                couche.diffuseTexture = texture;
+            }
+            return couche;
+        }
+
         /// <summary>Génère un mesh de cône simple (Unity n'a pas de primitive Cone native).</summary>
         static Mesh CreerMeshCone(float rayon, float hauteur, int segments)
         {
