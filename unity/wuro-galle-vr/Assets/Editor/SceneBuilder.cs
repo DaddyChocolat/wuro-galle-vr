@@ -55,17 +55,17 @@ namespace WuroGalle.Editor
 
             if (scene.name == "Campement")
             {
-                RemplacerSourceAudio("Audio_Feu", AudioFeu, new Vector3(0f, 0.3f, 0f), 0.7f, 6f);
-                RemplacerSourceAudio("Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.6f, 12f);
-                RemplacerSourceAudio("Audio_Paturage", AudioGrazingCows, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
-                RemplacerSourceAudio("Audio_Vent", AudioWind, new Vector3(0f, 2f, 4f), 0.35f, 30f, spatialBlend: 0.2f);
+                RemplacerSourceAudio(scene, "Audio_Feu", AudioFeu, new Vector3(0f, 0.3f, 0f), 0.7f, 6f);
+                RemplacerSourceAudio(scene, "Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.6f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Paturage", AudioGrazingCows, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Vent", AudioWind, new Vector3(0f, 2f, 4f), 0.35f, 30f, spatialBlend: 0.2f);
                 Debug.Log("[SceneBuilder] Audio ajouté à la scène Campement.");
             }
             else if (scene.name == "Concession")
             {
-                RemplacerSourceAudio("Audio_AppelPriere", AudioAppelPriere, new Vector3(0f, 1.5f, -2f), 0.5f, 15f);
-                RemplacerSourceAudio("Audio_Mouton", AudioMouton, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
-                RemplacerSourceAudio("Audio_Vent", AudioWind, new Vector3(0f, 2f, -4f), 0.35f, 30f, spatialBlend: 0.2f);
+                RemplacerSourceAudio(scene, "Audio_AppelPriere", AudioAppelPriere, new Vector3(0f, 1.5f, -2f), 0.5f, 15f);
+                RemplacerSourceAudio(scene, "Audio_Mouton", AudioMouton, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Vent", AudioWind, new Vector3(0f, 2f, -4f), 0.35f, 30f, spatialBlend: 0.2f);
                 Debug.Log("[SceneBuilder] Audio ajouté à la scène Concession.");
             }
             else
@@ -96,7 +96,7 @@ namespace WuroGalle.Editor
                 return;
             }
 
-            GameObject camObj = GameObject.Find("CameraJoueur");
+            GameObject camObj = TrouverDansScene(scene, "CameraJoueur");
             if (camObj == null)
             {
                 Debug.LogError("[SceneBuilder] CameraJoueur introuvable — ajoute d'abord le joueur (CreerJoueur) à la scène.");
@@ -127,7 +127,7 @@ namespace WuroGalle.Editor
             EditorUtility.SetDirty(profil);
             AssetDatabase.SaveAssets();
 
-            GameObject existant = GameObject.Find("Global_PostProcess_Volume");
+            GameObject existant = TrouverDansScene(scene, "Global_PostProcess_Volume");
             if (existant != null) Object.DestroyImmediate(existant);
 
             GameObject volumeObj = new GameObject("Global_PostProcess_Volume");
@@ -194,7 +194,7 @@ namespace WuroGalle.Editor
         public static void ActiverOmbresSoleilSceneActive()
         {
             Scene scene = EditorSceneManager.GetActiveScene();
-            GameObject soleilGO = GameObject.Find("Soleil_Zenith");
+            GameObject soleilGO = TrouverDansScene(scene, "Soleil_Zenith");
             if (soleilGO == null)
             {
                 Debug.LogError("[SceneBuilder] \"Soleil_Zenith\" introuvable dans la scène active.");
@@ -215,11 +215,11 @@ namespace WuroGalle.Editor
             Debug.Log("[SceneBuilder] Ombres activées sur Soleil_Zenith — vérifie en Play mode.");
         }
 
-        /// <summary>Supprime l'objet du même nom s'il existe déjà, puis recrée la source audio.</summary>
-        static void RemplacerSourceAudio(string nom, string cheminClip, Vector3 position,
+        /// <summary>Supprime l'objet du même nom (dans la scène donnée) s'il existe déjà, puis recrée la source audio.</summary>
+        static void RemplacerSourceAudio(Scene scene, string nom, string cheminClip, Vector3 position,
             float volume, float portee, float spatialBlend = 1f)
         {
-            var existant = GameObject.Find(nom);
+            var existant = TrouverDansScene(scene, nom);
             if (existant != null) Object.DestroyImmediate(existant);
             CreerSourceAudio(nom, cheminClip, position, volume, portee, spatialBlend);
         }
@@ -237,18 +237,18 @@ namespace WuroGalle.Editor
         {
             Scene scene = EditorSceneManager.GetActiveScene();
 
-            var joueur = GameObject.Find("Joueur");
+            var joueur = TrouverDansScene(scene, "Joueur");
             if (joueur != null && !joueur.CompareTag("Player"))
                 joueur.tag = "Player";
 
             if (scene.name == "Campement")
             {
-                RemplacerPNJ("PNJ_Berger", new Vector3(-1f, 0f, 1f), Quaternion.Euler(0, -30, 0));
+                RemplacerPNJ(scene, "PNJ_Berger", new Vector3(-1f, 0f, 1f), Quaternion.Euler(0, -30, 0));
                 Debug.Log("[SceneBuilder] PNJ_Berger ajouté à Campement (pas de ligne audio assignée).");
             }
             else if (scene.name == "Concession")
             {
-                RemplacerPNJ("PNJ_Femme", new Vector3(0.5f, 0f, 3.5f), Quaternion.Euler(0, 160, 0));
+                RemplacerPNJ(scene, "PNJ_Femme", new Vector3(0.5f, 0f, 3.5f), Quaternion.Euler(0, 160, 0));
                 Debug.Log("[SceneBuilder] PNJ_Femme ajouté à Concession (pas de ligne audio assignée).");
             }
             else
@@ -261,9 +261,9 @@ namespace WuroGalle.Editor
             EditorSceneManager.SaveScene(scene);
         }
 
-        static void RemplacerPNJ(string nom, Vector3 position, Quaternion rotation)
+        static void RemplacerPNJ(Scene scene, string nom, Vector3 position, Quaternion rotation)
         {
-            var existant = GameObject.Find(nom);
+            var existant = TrouverDansScene(scene, nom);
             if (existant != null) Object.DestroyImmediate(existant);
             CreerPNJPlaceholder(nom, position, rotation);
         }
@@ -323,11 +323,11 @@ namespace WuroGalle.Editor
                 return;
             }
 
-            var ancien = GameObject.Find("Montagnes_Lointaines");
+            var ancien = TrouverDansScene(scene, "Montagnes_Lointaines");
             if (ancien != null) Object.DestroyImmediate(ancien);
             CreerMontagnesLointaines();
 
-            var ancienneVege = GameObject.Find("Vegetation_Eparse");
+            var ancienneVege = TrouverDansScene(scene, "Vegetation_Eparse");
             if (ancienneVege != null) Object.DestroyImmediate(ancienneVege);
             // Zone évitée différente selon la scène (là où sont les structures).
             Rect zoneEvitee = scene.name == "Campement"
@@ -335,7 +335,7 @@ namespace WuroGalle.Editor
                 : new Rect(-6f, -4f, 12f, 11f);   // englobe dudal, cases, grenier, mobilier
             CreerVegetationEparse(zoneEvitee);
 
-            AdoucirTexturesParticulesFeu();
+            AdoucirTexturesParticulesFeu(scene);
 
             EditorSceneManager.SaveScene(scene);
             Debug.Log($"[SceneBuilder] Décor ajouté à la scène {scene.name}.");
@@ -374,7 +374,7 @@ namespace WuroGalle.Editor
 
             foreach (string nomAncien in new[] { "Montagnes_Lointaines", "Vegetation_Eparse", "Terrain_Environnement" })
             {
-                var ancien = GameObject.Find(nomAncien);
+                var ancien = TrouverDansScene(scene, nomAncien);
                 if (ancien != null) Object.DestroyImmediate(ancien);
             }
 
@@ -409,7 +409,7 @@ namespace WuroGalle.Editor
             // éviter le z-fighting avec le sol existant du Paysage.glb à l'intérieur de la zone évitée.
             terrainObj.transform.position = new Vector3(-taille / 2f, -0.1f, -taille / 2f);
 
-            MasquerSolExistant();
+            MasquerSolExistant(scene);
 
             // Brouillard : reprend les réglages qu'avait CreerMontagnesLointaines (les
             // collines du Terrain jouent maintenant ce rôle d'horizon qui se fond dans le ciel).
@@ -419,7 +419,7 @@ namespace WuroGalle.Editor
             RenderSettings.fogStartDistance = 25f;
             RenderSettings.fogEndDistance = 90f;
 
-            AdoucirTexturesParticulesFeu();
+            AdoucirTexturesParticulesFeu(scene);
 
             AssetDatabase.SaveAssets();
             EditorSceneManager.SaveScene(scene);
@@ -435,9 +435,9 @@ namespace WuroGalle.Editor
         /// parfaitement (shading différent même avec la même texture). Le Collider du
         /// Paysage reste actif (redondant avec le TerrainCollider mais sans effet néfaste).
         /// </summary>
-        static void MasquerSolExistant()
+        static void MasquerSolExistant(Scene scene)
         {
-            GameObject paysageGO = GameObject.Find("Paysage");
+            GameObject paysageGO = TrouverDansScene(scene, "Paysage");
             if (paysageGO == null)
             {
                 Debug.LogWarning("[SceneBuilder] \"Paysage\" introuvable — ancien sol non masqué.");
@@ -712,13 +712,13 @@ namespace WuroGalle.Editor
         /// jusqu'ici) par une texture radiale douce générée en code, appliquée aux
         /// matériaux des flammes et des braises (la fumée reste diffuse, déjà correcte).
         /// </summary>
-        static void AdoucirTexturesParticulesFeu()
+        static void AdoucirTexturesParticulesFeu(Scene scene)
         {
             var texture = CreerTextureRadialeDouce(64);
 
             foreach (var nomObjet in new[] { "Particules_Flammes", "Particules_Braises" })
             {
-                var obj = GameObject.Find(nomObjet);
+                var obj = TrouverDansScene(scene, nomObjet);
                 if (obj == null) continue; // pas de FeuDeCamp dans cette scène (ex. Concession)
 
                 var renderer = obj.GetComponent<ParticleSystemRenderer>();
@@ -1200,6 +1200,26 @@ namespace WuroGalle.Editor
             {
                 var trouve = TrouverEnfant(enfant, nom);
                 if (trouve != null) return trouve;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Cherche un GameObject par nom UNIQUEMENT dans la scène donnée — contrairement à
+        /// GameObject.Find qui cherche dans TOUTES les scènes chargées dans l'Éditeur.
+        /// Important ici : Campement et Concession sont presque toujours ouvertes en même
+        /// temps, et partagent des noms d'objets identiques ("Paysage", "Soleil_Zenith",
+        /// "Joueur", "Terrain_Environnement"...). Sans ce filtrage, un menu "non destructif"
+        /// pouvait silencieusement modifier l'objet de L'AUTRE scène — bug réel observé
+        /// (fix de sol appliqué à la mauvaise scène alors que les deux étaient chargées).
+        /// </summary>
+        static GameObject TrouverDansScene(Scene scene, string nom)
+        {
+            foreach (var racine in scene.GetRootGameObjects())
+            {
+                if (racine.name == nom) return racine;
+                var enfant = TrouverEnfant(racine.transform, nom);
+                if (enfant != null) return enfant.gameObject;
             }
             return null;
         }
