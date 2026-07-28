@@ -184,6 +184,37 @@ namespace WuroGalle.Editor
             vig.smoothness.overrideState = true; vig.smoothness.value = 0.4f;
         }
 
+        /// <summary>
+        /// Corrige un oubli dans CreerLumiereDirectionnelle : un Light créé par script n'a
+        /// AUCUNE ombre par défaut (LightShadows.None), d'où les ombres manquantes au sol
+        /// sous les cases/galle malgré un soleil bien visible. Non destructif : modifie
+        /// juste le composant Light existant sur "Soleil_Zenith" dans la scène active.
+        /// </summary>
+        [MenuItem("Wuro&Galle/Corriger : activer les ombres du soleil sur la scène active")]
+        public static void ActiverOmbresSoleilSceneActive()
+        {
+            Scene scene = EditorSceneManager.GetActiveScene();
+            GameObject soleilGO = GameObject.Find("Soleil_Zenith");
+            if (soleilGO == null)
+            {
+                Debug.LogError("[SceneBuilder] \"Soleil_Zenith\" introuvable dans la scène active.");
+                return;
+            }
+
+            Light lumiere = soleilGO.GetComponent<Light>();
+            if (lumiere == null)
+            {
+                Debug.LogError("[SceneBuilder] \"Soleil_Zenith\" n'a pas de composant Light.");
+                return;
+            }
+
+            lumiere.shadows = LightShadows.Soft;
+            lumiere.shadowStrength = 0.8f;
+
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("[SceneBuilder] Ombres activées sur Soleil_Zenith — vérifie en Play mode.");
+        }
+
         /// <summary>Supprime l'objet du même nom s'il existe déjà, puis recrée la source audio.</summary>
         static void RemplacerSourceAudio(string nom, string cheminClip, Vector3 position,
             float volume, float portee, float spatialBlend = 1f)
@@ -614,6 +645,10 @@ namespace WuroGalle.Editor
             lumiere.type = LightType.Directional;
             lumiere.intensity = 0.85f; // réduit (était 1.15) : combiné à l'ambiance du skybox, ça sur-exposait la scène
             lumiere.color = couleur;
+            // Par défaut un Light créé par script n'a AUCUNE ombre (LightShadows.None) —
+            // c'était la cause des ombres manquantes au sol sous les cases.
+            lumiere.shadows = LightShadows.Soft;
+            lumiere.shadowStrength = 0.8f;
             lumiereGO.transform.rotation = Quaternion.Euler(50f, -30f, 0f); // angle de zénith approximatif
 
             // Lumière ambiante du skybox par défaut (Built-in RP) : s'additionne à la
