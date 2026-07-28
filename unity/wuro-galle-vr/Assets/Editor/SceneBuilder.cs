@@ -452,7 +452,16 @@ namespace WuroGalle.Editor
             }
 
             var renderer = solExistant.GetComponent<MeshRenderer>();
-            if (renderer != null) renderer.enabled = false;
+            if (renderer == null)
+            {
+                Debug.LogWarning("[SceneBuilder] \"Terrain\" (sous Paysage) n'a pas de MeshRenderer — rien à masquer.");
+                return;
+            }
+            renderer.enabled = false;
+            // Log explicite et bruyant : si tu ne vois PAS cette ligne dans la Console après
+            // avoir relancé le menu, c'est que le menu n'a pas tourné sur la bonne scène/n'a
+            // pas été relancé du tout — vérifie ça avant de chercher ailleurs.
+            Debug.Log($"[SceneBuilder] ANCIEN SOL MASQUÉ avec succès (scène '{scene.name}', renderer.enabled = {renderer.enabled}).");
         }
 
         /// <summary>Distance (monde) entre un point et le rectangle le plus proche ; 0 si le point est dedans.</summary>
