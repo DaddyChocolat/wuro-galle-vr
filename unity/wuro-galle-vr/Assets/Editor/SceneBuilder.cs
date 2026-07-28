@@ -384,9 +384,13 @@ namespace WuroGalle.Editor
             data.size = new Vector3(taille, hauteurMax, taille);
             data.SetHeights(0, 0, GenererHauteursTerrain(resolution, taille, zoneEvitee));
 
-            var coucheSable = CreerOuChargerCoucheTerrain("Sol_Sable", new Color(0.76f, 0.68f, 0.52f), new Color(0.62f, 0.54f, 0.40f));
-            var coucheTerreSeche = CreerOuChargerCoucheTerrain("Sol_TerreSeche", new Color(0.35f, 0.32f, 0.18f), new Color(0.22f, 0.24f, 0.12f));
-            data.terrainLayers = new[] { coucheSable, coucheTerreSeche };
+            // Deux tons de SABLE (même famille de couleur, chaude, cohérente avec Soleil_Zenith
+            // et le color grading réchauffé) — pas de terre/végétation : le sol doit rester
+            // uniforme, désertique. Le ton plus sombre représente juste le sable piétiné/tassé
+            // près du campement (beaucoup de passage), pas un matériau différent.
+            var coucheSable = CreerOuChargerCoucheTerrain("Sol_Sable", new Color(0.80f, 0.70f, 0.50f), new Color(0.86f, 0.77f, 0.59f));
+            var coucheSablePietine = CreerOuChargerCoucheTerrain("Sol_Sable_Pietine", new Color(0.66f, 0.58f, 0.42f), new Color(0.72f, 0.64f, 0.47f));
+            data.terrainLayers = new[] { coucheSable, coucheSablePietine };
             data.SetAlphamaps(0, 0, GenererAlphamapTerrain(data.alphamapWidth, data.alphamapHeight, taille, zoneEvitee));
 
             if (!AssetDatabase.IsValidFolder("Assets/Terrains"))
@@ -460,12 +464,17 @@ namespace WuroGalle.Editor
         }
 
         /// <summary>
-        /// Mélange sable (majoritaire) / terre sèche clairsemée (poches irrégulières via
-        /// bruit de Perlin, un peu plus dense juste à la sortie de la zone habitée).
+        /// Sable piétiné concentré autour de la zone habitée (rayon avec bord organique,
+        /// pas un cercle parfait) puis s'estompe vers du sable uniforme au loin — reproduit
+        /// le sol tassé par le passage répété plutôt qu'un patchwork de textures différentes.
+        /// Poids plafonné (jamais 100%) pour que le sol reste visuellement uniforme partout.
         /// </summary>
         static float[,,] GenererAlphamapTerrain(int largeur, int hauteur, float taille, Rect zoneEvitee)
         {
             var carte = new float[hauteur, largeur, 2];
+            const float porteeChemin = 22f; // rayon (m) sur lequel le sol piétiné s'estompe
+            const float poidsMax = 0.55f;   // jamais 100% : garde une base sable uniforme partout
+
             for (int iz = 0; iz < hauteur; iz++)
             {
                 for (int ix = 0; ix < largeur; ix++)
@@ -473,21 +482,24 @@ namespace WuroGalle.Editor
                     float worldX = (ix / (float)(largeur - 1)) * taille - taille / 2f;
                     float worldZ = (iz / (float)(hauteur - 1)) * taille - taille / 2f;
 
-                    float bruit = Mathf.PerlinNoise((worldX + 500f) * 0.06f, (worldZ + 500f) * 0.06f);
                     float distance = DistanceHorsRect(worldX, worldZ, zoneEvitee);
-                    float poidsTerreSeche = Mathf.Clamp01(bruit - distance / 80f);
+                    // Bord organique (pas un cercle parfait) via un léger bruit sur la distance.
+                    float jitter = (Mathf.PerlinNoise((worldX + 300f) * 0.05f, (worldZ + 300f) * 0.05f) - 0.5f) * 8f;
+                    float poidsPietine = Mathf.Clamp01(1f - (distance + jitter) / porteeChemin) * poidsMax;
 
-                    carte[iz, ix, 1] = poidsTerreSeche;
-                    carte[iz, ix, 0] = 1f - poidsTerreSeche;
+                    carte[iz, ix, 1] = poidsPietine;
+                    carte[iz, ix, 0] = 1f - poidsPietine;
                 }
             }
             return carte;
         }
 
         /// <summary>
-        /// Texture procédurale (bruit de Perlin) pour une couche de Terrain — évite de
-        /// dépendre d'une texture externe téléchargée (question de licence/source, voir
-        /// note-ethique.md) alors qu'on n'a pas encore de vraie texture PBR sable/terre.
+        /// Texture procédurale "sable balayé par le vent" — bruit étiré (fréquences très
+        /// différentes en X/Y) pour des stries allongées façon sable balayé plutôt que des
+        /// taches rondes, contraste volontairement faible pour rester visuellement uniforme.
+        /// Évite de dépendre d'une texture externe téléchargée (question de licence/source,
+        /// voir note-ethique.md) alors qu'on n'a pas encore de vraie texture PBR sable.
         /// À remplacer plus tard par une vraie texture si le temps le permet.
         /// </summary>
         static Texture2D CreerTextureProceduraleSol(int taille, Color baseColor, Color variationColor)
@@ -497,8 +509,11 @@ namespace WuroGalle.Editor
             {
                 for (int x = 0; x < taille; x++)
                 {
-                    float n = Mathf.PerlinNoise(x * 0.08f, y * 0.08f);
-                    tex.SetPixel(x, y, Color.Lerp(baseColor, variationColor, n));
+                    float stries = Mathf.PerlinNoise(x * 0.015f, y * 0.2f);   // grandes stries allongées (vent)
+                    float grain = Mathf.PerlinNoise(x * 0.6f, y * 3f);        // grain fin superposé
+                    float n = Mathf.Clamp01(stries * 0.75f + grain * 0.25f);
+                    // Contraste réduit (n * 0.4) : variations subtiles, sol globalement uniforme.
+                    tex.SetPixel(x, y, Color.Lerp(baseColor, variationColor, n * 0.4f));
                 }
             }
             tex.Apply();
