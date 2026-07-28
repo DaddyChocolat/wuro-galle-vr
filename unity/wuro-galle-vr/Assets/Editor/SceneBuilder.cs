@@ -457,11 +457,13 @@ namespace WuroGalle.Editor
                 return;
             }
 
-            Texture2D textureSable = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Terrains/Textures/Sol_Sable.png");
+            // Couleur unie plutôt qu'une texture : ce mesh n'a probablement pas de vraies
+            // UV (jamais nécessaire avec l'ancien matériau plat "Sol_Laterite"), donc une
+            // texture s'y afficherait comme un seul aplat de toute façon — autant assumer
+            // une couleur unie directement (indépendante des UV, garantie uniforme).
             var matSol = new Material(Shader.Find("Standard"));
-            matSol.mainTexture = textureSable;
-            matSol.mainTextureScale = new Vector2(5f, 5f); // à réajuster à l'œil selon la taille réelle du mesh
-            matSol.SetFloat("_Glossiness", 0.12f);
+            matSol.color = new Color(0.80f, 0.70f, 0.50f); // même ton que Sol_Sable (Terrain)
+            matSol.SetFloat("_Glossiness", 0.1f);
             renderer.sharedMaterial = matSol;
 
             // Log explicite et bruyant : si tu ne vois PAS cette ligne après avoir relancé
