@@ -409,7 +409,7 @@ namespace WuroGalle.Editor
             // éviter le z-fighting avec le sol existant du Paysage.glb à l'intérieur de la zone évitée.
             terrainObj.transform.position = new Vector3(-taille / 2f, -0.1f, -taille / 2f);
 
-            MasquerSolExistant(scene);
+            RetexturerSolHabite(scene);
 
             // Brouillard : reprend les réglages qu'avait CreerMontagnesLointaines (les
             // collines du Terrain jouent maintenant ce rôle d'horizon qui se fond dans le ciel).
@@ -427,41 +427,46 @@ namespace WuroGalle.Editor
         }
 
         /// <summary>
-        /// Masque le rendu du sol existant du Paysage.glb (objet enfant "Terrain", un mesh
-        /// plat modélisé à la main sous une partie seulement des structures — pas toute la
-        /// zone habitée/l'enclos) pour laisser voir le nouveau Terrain à la place. Un seul
-        /// sol visible sur tout l'espace vie de la concession (cases, enclos, mare, dudal,
-        /// grenier) au lieu de deux meshes différents qui ne peuvent jamais se raccorder
-        /// parfaitement (shading différent même avec la même texture). Le Collider du
-        /// Paysage reste actif (redondant avec le TerrainCollider mais sans effet néfaste).
+        /// Retexture le sol existant du Paysage.glb (objet enfant "Terrain", mesh plat qui
+        /// couvre en réalité TOUTE la zone habitée — cases, enclos, mare, dudal, grenier,
+        /// vérifié via l'Inspector) avec la même texture procédurale de sable que le nouveau
+        /// Terrain, au lieu de le masquer : ce mesh est le bon support pour toute la zone
+        /// plate, il suffisait de changer son matériau (auparavant "Sol_Laterite", un
+        /// matériau glTF importé sans rapport avec le sable désertique voulu).
         /// </summary>
-        static void MasquerSolExistant(Scene scene)
+        static void RetexturerSolHabite(Scene scene)
         {
             GameObject paysageGO = TrouverDansScene(scene, "Paysage");
             if (paysageGO == null)
             {
-                Debug.LogWarning("[SceneBuilder] \"Paysage\" introuvable — ancien sol non masqué.");
+                Debug.LogWarning("[SceneBuilder] \"Paysage\" introuvable — ancien sol non retexturé.");
                 return;
             }
 
             Transform solExistant = TrouverEnfant(paysageGO.transform, "Terrain");
             if (solExistant == null)
             {
-                Debug.LogWarning("[SceneBuilder] Enfant \"Terrain\" introuvable sous Paysage — ancien sol non masqué.");
+                Debug.LogWarning("[SceneBuilder] Enfant \"Terrain\" introuvable sous Paysage — ancien sol non retexturé.");
                 return;
             }
 
             var renderer = solExistant.GetComponent<MeshRenderer>();
             if (renderer == null)
             {
-                Debug.LogWarning("[SceneBuilder] \"Terrain\" (sous Paysage) n'a pas de MeshRenderer — rien à masquer.");
+                Debug.LogWarning("[SceneBuilder] \"Terrain\" (sous Paysage) n'a pas de MeshRenderer — rien à retexturer.");
                 return;
             }
-            renderer.enabled = false;
-            // Log explicite et bruyant : si tu ne vois PAS cette ligne dans la Console après
-            // avoir relancé le menu, c'est que le menu n'a pas tourné sur la bonne scène/n'a
-            // pas été relancé du tout — vérifie ça avant de chercher ailleurs.
-            Debug.Log($"[SceneBuilder] ANCIEN SOL MASQUÉ avec succès (scène '{scene.name}', renderer.enabled = {renderer.enabled}).");
+
+            Texture2D textureSable = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Terrains/Textures/Sol_Sable.png");
+            var matSol = new Material(Shader.Find("Standard"));
+            matSol.mainTexture = textureSable;
+            matSol.mainTextureScale = new Vector2(5f, 5f); // à réajuster à l'œil selon la taille réelle du mesh
+            matSol.SetFloat("_Glossiness", 0.12f);
+            renderer.sharedMaterial = matSol;
+
+            // Log explicite et bruyant : si tu ne vois PAS cette ligne après avoir relancé
+            // le menu, il n'a pas tourné sur la bonne scène — vérifie ça avant de chercher ailleurs.
+            Debug.Log($"[SceneBuilder] ANCIEN SOL RETEXTURÉ avec succès (scène '{scene.name}', matériau = {renderer.sharedMaterial.name}).");
         }
 
         /// <summary>Distance (monde) entre un point et le rectangle le plus proche ; 0 si le point est dedans.</summary>
