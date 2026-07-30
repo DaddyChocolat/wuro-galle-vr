@@ -102,6 +102,17 @@ def creer_bande(nom, t_debut, t_fin, n_points=6, segments=SEGMENTS_REVOLUTION):
 
     obj = bpy.data.objects.new(nom, mesh)
     bpy.context.collection.objects.link(obj)
+
+    # UV : ce mesh est construit à la main via bmesh, donc SANS aucune UV par
+    # défaut (contrairement aux primitives Blender comme le cylindre/cône).
+    # Sans ça, une texture réelle (voir creer_materiau_alpha) s'afficherait
+    # comme un aplat — même bug que celui rencontré sur le sol du Paysage.
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project()
+    bpy.ops.object.mode_set(mode='OBJECT')
+
     return obj
 
 
@@ -153,19 +164,15 @@ def creer_materiau_alpha():
     # mur_tresse_ref.jpg), montrant une vraie natte tressée en gros plan.
     # Remplace l'ancienne variation de couleur procédurale : un vrai motif
     # tressé photographié plutôt qu'un bruit approximatif.
+    # IMPORTANT : pas de nœud TexCoord/Mapping ("Generated") ici — glTF ne
+    # connaît que les UV. Le nœud Image Texture sans Vector connecté utilise
+    # automatiquement l'UV Map active du mesh (générée juste au-dessus via
+    # smart_project), ce qui EST exportable.
     image = _charger_texture_reference("mur_tresse_ref.jpg")
     if image is not None:
-        mapping_coord = nodes.new("ShaderNodeTexCoord")
-        mapping_coord.location = (-700, 200)
-        mapping = nodes.new("ShaderNodeMapping")
-        mapping.location = (-500, 200)
-        mapping.inputs["Scale"].default_value = (2.0, 2.0, 2.0)
-        links.new(mapping_coord.outputs["Generated"], mapping.inputs["Vector"])
-
         tex_couleur = nodes.new("ShaderNodeTexImage")
         tex_couleur.location = (-200, 200)
         tex_couleur.image = image
-        links.new(mapping.outputs["Vector"], tex_couleur.inputs["Vector"])
         links.new(tex_couleur.outputs["Color"], principled.inputs["Base Color"])
     else:
         # Secours procédural si la texture n'est pas trouvée (ne bloque pas le script).
