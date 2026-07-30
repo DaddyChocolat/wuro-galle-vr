@@ -23,6 +23,25 @@ Doit être lancé après armature_suudu.py pour partager les mêmes dimensions.
 import bpy
 import bmesh
 import math
+import os
+
+
+def _charger_texture_reference(nom_fichier):
+    """
+    Charge une image depuis blender/textures/reference/, en chemin relatif au
+    .blend actuellement ouvert (qui doit vivre dans blender/suudu/). Retourne
+    None si introuvable, plutôt que de planter — le matériau retombe alors
+    sur la couleur plate définie par défaut.
+    """
+    if not bpy.data.filepath:
+        print(f"ATTENTION : .blend non sauvegardé — impossible de localiser {nom_fichier}, texture non chargée.")
+        return None
+    dossier_blend = os.path.dirname(bpy.data.filepath)
+    chemin = os.path.normpath(os.path.join(dossier_blend, "..", "textures", "reference", nom_fichier))
+    if not os.path.exists(chemin):
+        print(f"ATTENTION : texture introuvable : {chemin} — texture non chargée.")
+        return None
+    return bpy.data.images.load(chemin, check_existing=True)
 
 # --- Dimensions (partagées avec l'armature) ---
 RAYON_BASE = 1.3
@@ -128,25 +147,45 @@ def creer_materiau_alpha():
     rampe_alpha.color_ramp.elements[0].position = 0.35
     rampe_alpha.color_ramp.elements[1].position = 0.45
 
-    # Variation de couleur (brins plus foncés/clairs) — même logique que les
-    # autres matériaux du projet, pour casser l'aplat uniforme d'avant.
-    bruit_couleur = nodes.new("ShaderNodeTexNoise")
-    bruit_couleur.location = (-400, 200)
-    bruit_couleur.inputs["Scale"].default_value = 20.0
+    # Couleur RÉELLE : texture tirée de docs/Livrable_1/iconographie/
+    # Case_traditionnelle_des_peulhs.jpg (photo déjà sourcée/citée dans le
+    # corpus documentaire — recadrée en blender/textures/reference/
+    # mur_tresse_ref.jpg), montrant une vraie natte tressée en gros plan.
+    # Remplace l'ancienne variation de couleur procédurale : un vrai motif
+    # tressé photographié plutôt qu'un bruit approximatif.
+    image = _charger_texture_reference("mur_tresse_ref.jpg")
+    if image is not None:
+        mapping_coord = nodes.new("ShaderNodeTexCoord")
+        mapping_coord.location = (-700, 200)
+        mapping = nodes.new("ShaderNodeMapping")
+        mapping.location = (-500, 200)
+        mapping.inputs["Scale"].default_value = (2.0, 2.0, 2.0)
+        links.new(mapping_coord.outputs["Generated"], mapping.inputs["Vector"])
 
-    rampe_couleur = nodes.new("ShaderNodeValToRGB")
-    rampe_couleur.location = (-150, 200)
-    rampe_couleur.color_ramp.elements[0].position = 0.35
-    rampe_couleur.color_ramp.elements[1].position = 0.65
+        tex_couleur = nodes.new("ShaderNodeTexImage")
+        tex_couleur.location = (-200, 200)
+        tex_couleur.image = image
+        links.new(mapping.outputs["Vector"], tex_couleur.inputs["Vector"])
+        links.new(tex_couleur.outputs["Color"], principled.inputs["Base Color"])
+    else:
+        # Secours procédural si la texture n'est pas trouvée (ne bloque pas le script).
+        bruit_couleur = nodes.new("ShaderNodeTexNoise")
+        bruit_couleur.location = (-400, 200)
+        bruit_couleur.inputs["Scale"].default_value = 20.0
 
-    mix_couleur = nodes.new("ShaderNodeMixRGB")
-    mix_couleur.location = (100, 200)
-    mix_couleur.inputs["Color1"].default_value = (0.62, 0.48, 0.24, 1.0)
-    mix_couleur.inputs["Color2"].default_value = (0.48, 0.36, 0.16, 1.0)  # brins plus vieillis
+        rampe_couleur = nodes.new("ShaderNodeValToRGB")
+        rampe_couleur.location = (-150, 200)
+        rampe_couleur.color_ramp.elements[0].position = 0.35
+        rampe_couleur.color_ramp.elements[1].position = 0.65
 
-    links.new(bruit_couleur.outputs["Fac"], rampe_couleur.inputs["Fac"])
-    links.new(rampe_couleur.outputs["Color"], mix_couleur.inputs["Fac"])
-    links.new(mix_couleur.outputs["Color"], principled.inputs["Base Color"])
+        mix_couleur = nodes.new("ShaderNodeMixRGB")
+        mix_couleur.location = (100, 200)
+        mix_couleur.inputs["Color1"].default_value = (0.62, 0.48, 0.24, 1.0)
+        mix_couleur.inputs["Color2"].default_value = (0.48, 0.36, 0.16, 1.0)
+
+        links.new(bruit_couleur.outputs["Fac"], rampe_couleur.inputs["Fac"])
+        links.new(rampe_couleur.outputs["Color"], mix_couleur.inputs["Fac"])
+        links.new(mix_couleur.outputs["Color"], principled.inputs["Base Color"])
 
     links.new(voronoi.outputs["Distance"], rampe_alpha.inputs["Fac"])
     links.new(rampe_alpha.outputs["Color"], principled.inputs["Alpha"])
