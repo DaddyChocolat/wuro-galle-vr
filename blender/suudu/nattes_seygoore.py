@@ -24,6 +24,58 @@ import bpy
 import bmesh
 import math
 import os
+import mathutils
+
+
+def _rendre_apercu(objets, nom_image, resolution=(900, 700)):
+    """
+    Rend un PNG cadré automatiquement sur les objets donnés, dans
+    blender/apercus/ — même logique que dans materiaux_case.py (dupliquée,
+    pas importée : convention du projet pour ces scripts autonomes lancés
+    via l'onglet Scripting, où un import inter-fichiers n'est pas fiable).
+    """
+    if not objets or not bpy.data.filepath:
+        print("ATTENTION : aperçu ignoré (aucun objet ou .blend non sauvegardé).")
+        return None
+
+    mins = mathutils.Vector((min(min((o.matrix_world @ mathutils.Vector(c))[i] for c in o.bound_box) for o in objets) for i in range(3)))
+    maxs = mathutils.Vector((max(max((o.matrix_world @ mathutils.Vector(c))[i] for c in o.bound_box) for o in objets) for i in range(3)))
+    centre = (mins + maxs) / 2
+    rayon = max((maxs - mins).x, (maxs - mins).y, (maxs - mins).z, 0.5)
+
+    camera = bpy.data.objects.get("Camera_Apercu")
+    if camera is None:
+        cam_data = bpy.data.cameras.new("Camera_Apercu")
+        camera = bpy.data.objects.new("Camera_Apercu", cam_data)
+        bpy.context.collection.objects.link(camera)
+    distance = rayon * 2.4
+    camera.location = centre + mathutils.Vector((distance * 0.8, -distance * 0.9, distance * 0.6))
+    camera.rotation_euler = (centre - camera.location).to_track_quat('-Z', 'Y').to_euler()
+    bpy.context.scene.camera = camera
+
+    if not any(o.type == 'LIGHT' and o.data.type == 'SUN' for o in bpy.context.scene.objects):
+        sun_data = bpy.data.lights.new("Sun_Apercu", type='SUN')
+        sun_data.energy = 3.0
+        sun_obj = bpy.data.objects.new("Sun_Apercu", sun_data)
+        bpy.context.collection.objects.link(sun_obj)
+        sun_obj.rotation_euler = (0.9, 0.3, 0.6)
+
+    scene = bpy.context.scene
+    try:
+        scene.render.engine = 'BLENDER_EEVEE'
+    except TypeError:
+        scene.render.engine = 'BLENDER_EEVEE_NEXT'
+    scene.render.resolution_x, scene.render.resolution_y = resolution
+    scene.render.image_settings.file_format = 'PNG'
+
+    dossier_apercus = os.path.normpath(os.path.join(os.path.dirname(bpy.data.filepath), "..", "apercus"))
+    os.makedirs(dossier_apercus, exist_ok=True)
+    chemin_sortie = os.path.join(dossier_apercus, f"{nom_image}.png")
+    scene.render.filepath = chemin_sortie
+
+    bpy.ops.render.render(write_still=True)
+    print(f"Aperçu rendu : {chemin_sortie}")
+    return chemin_sortie
 
 
 def _charger_texture_reference(nom_fichier):
@@ -225,3 +277,9 @@ if __name__ == "__main__":
         bande.data.materials.append(materiau)
         bandes_crees.append(bande)
     rapport_triangles(bandes_crees)
+
+    # Aperçu complet : armature + nattes si armature_suudu.py a déjà tourné
+    # dans ce .blend, sinon nattes seules.
+    objets_suudu = [o for o in bpy.data.objects
+                     if o.name.startswith("Suudu_Arche") or o.name.startswith("Natte_seygoore")]
+    _rendre_apercu(objets_suudu, "suudu_apercu")

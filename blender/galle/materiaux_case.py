@@ -32,6 +32,59 @@ sans attendre un aller-retour Unity complet.
 
 import bpy
 import os
+import mathutils
+
+
+def _rendre_apercu(objets, nom_image, resolution=(900, 700)):
+    """
+    Rend un PNG cadré automatiquement sur les objets donnés, dans
+    blender/apercus/. Évite d'ouvrir Blender et d'orbiter la vue 3D à la main
+    pour juger du résultat visuel après une passe de matériaux — un coup
+    d'œil sur l'image suffit. Réutilise Camera_Apercu/Sun_Apercu s'ils
+    existent déjà (relançable sans créer de doublons).
+    """
+    if not objets or not bpy.data.filepath:
+        print("ATTENTION : aperçu ignoré (aucun objet ou .blend non sauvegardé).")
+        return None
+
+    mins = mathutils.Vector((min(min((o.matrix_world @ mathutils.Vector(c))[i] for c in o.bound_box) for o in objets) for i in range(3)))
+    maxs = mathutils.Vector((max(max((o.matrix_world @ mathutils.Vector(c))[i] for c in o.bound_box) for o in objets) for i in range(3)))
+    centre = (mins + maxs) / 2
+    rayon = max((maxs - mins).x, (maxs - mins).y, (maxs - mins).z, 0.5)
+
+    camera = bpy.data.objects.get("Camera_Apercu")
+    if camera is None:
+        cam_data = bpy.data.cameras.new("Camera_Apercu")
+        camera = bpy.data.objects.new("Camera_Apercu", cam_data)
+        bpy.context.collection.objects.link(camera)
+    distance = rayon * 2.4
+    camera.location = centre + mathutils.Vector((distance * 0.8, -distance * 0.9, distance * 0.6))
+    camera.rotation_euler = (centre - camera.location).to_track_quat('-Z', 'Y').to_euler()
+    bpy.context.scene.camera = camera
+
+    if not any(o.type == 'LIGHT' and o.data.type == 'SUN' for o in bpy.context.scene.objects):
+        sun_data = bpy.data.lights.new("Sun_Apercu", type='SUN')
+        sun_data.energy = 3.0
+        sun_obj = bpy.data.objects.new("Sun_Apercu", sun_data)
+        bpy.context.collection.objects.link(sun_obj)
+        sun_obj.rotation_euler = (0.9, 0.3, 0.6)
+
+    scene = bpy.context.scene
+    try:
+        scene.render.engine = 'BLENDER_EEVEE'
+    except TypeError:
+        scene.render.engine = 'BLENDER_EEVEE_NEXT'  # Blender 4.2+ a renommé le moteur
+    scene.render.resolution_x, scene.render.resolution_y = resolution
+    scene.render.image_settings.file_format = 'PNG'
+
+    dossier_apercus = os.path.normpath(os.path.join(os.path.dirname(bpy.data.filepath), "..", "apercus"))
+    os.makedirs(dossier_apercus, exist_ok=True)
+    chemin_sortie = os.path.join(dossier_apercus, f"{nom_image}.png")
+    scene.render.filepath = chemin_sortie
+
+    bpy.ops.render.render(write_still=True)
+    print(f"Aperçu rendu : {chemin_sortie}")
+    return chemin_sortie
 
 
 def _charger_texture_reference(nom_fichier):
@@ -136,3 +189,6 @@ if __name__ == "__main__":
         print(f"  {suffixe:8s} : {n} objet(s)")
     if sum(compteurs.values()) == 0:
         print("ATTENTION : aucun objet 'Case*_Mur/_Toit/_Porte' trouvé — lance d'abord case_banco.py")
+    else:
+        objets_cases = [o for o in bpy.data.objects if o.name.startswith("Case")]
+        _rendre_apercu(objets_cases, "cases_apercu")

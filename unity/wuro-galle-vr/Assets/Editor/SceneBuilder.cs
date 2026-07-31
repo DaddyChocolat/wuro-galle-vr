@@ -937,6 +937,53 @@ namespace WuroGalle.Editor
         }
 
         /// <summary>
+        /// Orchestrateur : reconstruit les deux scènes de zéro et applique toutes les
+        /// passes non-destructives (audio, post-processing, ombres, PNJ) sans qu'il soit
+        /// nécessaire de cliquer sur chaque entrée de menu une par une.
+        ///
+        /// Pensé pour être appelé aussi bien depuis le menu Unity (Editor ouvert) que depuis
+        /// la ligne de commande en mode batch, ex. sur le PC GPU :
+        ///
+        ///   Unity.exe -batchmode -nographics -quit ^
+        ///     -projectPath "T:\ProjetEddy\wuro-galle-vr\unity\wuro-galle-vr" ^
+        ///     -executeMethod WuroGalle.Editor.SceneBuilder.ExecuterPipelineComplet ^
+        ///     -logFile "T:\ProjetEddy\build_log.txt"
+        ///
+        /// ATTENTION : BuildCampement()/BuildConcession() ÉCRASENT la scène existante
+        /// (NewScene en mode Single) — tout ajustement fait à la main directement dans
+        /// l'éditeur (hors scripts) sera perdu. À lancer seulement après un import propre
+        /// des .glb, pas en remplacement d'un ajustement manuel en cours.
+        /// </summary>
+        [MenuItem("Wuro&Galle/Pipeline complet : reconstruire + tout appliquer")]
+        public static void ExecuterPipelineComplet()
+        {
+            BuildCampement();
+            AjouterAudioSceneActive();
+            AjouterPostProcessingSceneActive();
+            ActiverOmbresSoleilSceneActive();
+            AjouterPNJSceneActive();
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+            Debug.Log("[SceneBuilder] Campement : reconstruite + audio + post-processing + ombres + PNJ.");
+
+            BuildConcession();
+            AjouterAudioSceneActive();
+            AjouterPostProcessingSceneActive();
+            ActiverOmbresSoleilSceneActive();
+            AjouterPNJSceneActive();
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+            Debug.Log("[SceneBuilder] Concession : reconstruite + audio + post-processing + ombres + PNJ.");
+
+            Debug.Log("[SceneBuilder] Pipeline complet terminé.");
+
+            // Ne quitte l'éditeur que si on tourne réellement en batch (CLI) — sinon un
+            // appel depuis le menu fermerait l'Editor ouvert de l'utilisateur.
+            if (Application.isBatchMode)
+            {
+                EditorApplication.Exit(0);
+            }
+        }
+
+        /// <summary>
         /// Instancie un module GLTF importé à une position/rotation donnée. Si l'asset est
         /// introuvable (mauvais chemin, pas encore importé), crée un objet vide nommé
         /// "MANQUANT_..." à la bonne position plutôt que de planter — visible immédiatement
