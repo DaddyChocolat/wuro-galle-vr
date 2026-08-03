@@ -32,6 +32,11 @@ namespace WuroGalle.Editor
         const string PathNatte = "Assets/Models/Mobilier/Natte.glb";
         const string PathMortier = "Assets/Models/Mobilier/Mortier.glb";
         const string PathPilon = "Assets/Models/Mobilier/Pilon.glb";
+        // Acacia parasol (blender/paysage/vegetation_sahelienne.py) — un seul module,
+        // réutilisé plusieurs fois par CreerVegetationEparse. Import requis avant de
+        // relancer BuildCampement/BuildConcession/le pipeline complet, sinon
+        // Instancier() crée un placeholder "MANQUANT_" visible mais inoffensif.
+        const string PathAcacia = "Assets/Models/Paysage/Acacia.glb";
 
         // Sons libres de droits déjà présents dans Assets/Audio/ (voir note-ethique.md
         // pour les critères de sélection des sources).
@@ -745,9 +750,20 @@ namespace WuroGalle.Editor
             var parent = new GameObject("Vegetation_Eparse");
             var rng = new System.Random(7);
 
-            var mat = new Material(Shader.Find("Standard"));
-            mat.color = new Color(0.16f, 0.20f, 0.11f);
-            mat.SetFloat("_Glossiness", 0.05f);
+            // Acacia parasol modélisé en Blender (blender/paysage/vegetation_sahelienne.py),
+            // silhouette réelle de la savane soudano-sahélienne — utilisé en priorité s'il a
+            // été exporté et importé. Sinon, retombe sur les cônes procéduraux (mieux qu'une
+            // zone vide en attendant l'export, mais pas la version définitive).
+            var assetAcacia = AssetDatabase.LoadAssetAtPath<GameObject>(PathAcacia);
+            Material matBuissonSecours = null;
+            if (assetAcacia == null)
+            {
+                matBuissonSecours = new Material(Shader.Find("Standard"));
+                matBuissonSecours.color = new Color(0.16f, 0.20f, 0.11f);
+                matBuissonSecours.SetFloat("_Glossiness", 0.05f);
+                Debug.LogWarning($"[SceneBuilder] {PathAcacia} introuvable — végétation en cônes procéduraux (secours). " +
+                    "Exporte vegetation_sahelienne.py en GLB, importe-le, puis relance pour la vraie silhouette d'acacia.");
+            }
 
             int nombre = 45;
             int placees = 0;
@@ -759,18 +775,31 @@ namespace WuroGalle.Editor
                 float z = (float)(rng.NextDouble() * 24 - 12);
                 if (zoneEvitee.Contains(new Vector2(x, z))) continue;
 
-                var buisson = new GameObject($"Buisson_{placees}");
-                buisson.transform.SetParent(parent.transform);
-                buisson.transform.position = new Vector3(x, 0f, z);
-                buisson.transform.rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
+                if (assetAcacia != null)
+                {
+                    var acacia = (GameObject)PrefabUtility.InstantiatePrefab(assetAcacia, parent.transform);
+                    acacia.name = $"Acacia_{placees}";
+                    acacia.transform.position = new Vector3(x, 0f, z);
+                    acacia.transform.rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
+                    // Un seul module réutilisé : la variation de taille vient de l'échelle,
+                    // pas d'une nouvelle géométrie (aucun coût triangle supplémentaire).
+                    acacia.transform.localScale = Vector3.one * (0.8f + (float)rng.NextDouble() * 0.5f);
+                }
+                else
+                {
+                    var buisson = new GameObject($"Buisson_{placees}");
+                    buisson.transform.SetParent(parent.transform);
+                    buisson.transform.position = new Vector3(x, 0f, z);
+                    buisson.transform.rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
 
-                var mf = buisson.AddComponent<MeshFilter>();
-                mf.sharedMesh = CreerMeshCone(
-                    0.2f + (float)rng.NextDouble() * 0.2f,
-                    0.35f + (float)rng.NextDouble() * 0.3f,
-                    5);
-                var mr = buisson.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = mat;
+                    var mf = buisson.AddComponent<MeshFilter>();
+                    mf.sharedMesh = CreerMeshCone(
+                        0.2f + (float)rng.NextDouble() * 0.2f,
+                        0.35f + (float)rng.NextDouble() * 0.3f,
+                        5);
+                    var mr = buisson.AddComponent<MeshRenderer>();
+                    mr.sharedMaterial = matBuissonSecours;
+                }
 
                 placees++;
             }
@@ -893,6 +922,16 @@ namespace WuroGalle.Editor
             // Natte de prière posée sur le dudal — annoncé dans dudal_grenier.py comme
             // à faire "au moment de l'assemblage Unity", fait ici.
             Instancier(PathNatte, new Vector3(0f, 0.02f, -2f), Quaternion.Euler(0, 10, 0), "Natte_Priere");
+
+            // Case d'hôte (suudu hoɓɓe) : documentée dans schema-annote-suudu-galle.md
+            // ("proche de l'entrée, l'hôte est reçu sans accéder à l'espace familial
+            // privé") mais absente des versions précédentes de cette méthode — écart
+            // corrigé ici. Réutilise le module de case existant (galle_1.glb) : "suudu"
+            // désigne ici une case en paille générique (voir glossaire), pas la tente à
+            // armature du campement nomade — la case d'hôte doit donc ressembler aux
+            // autres cases de la concession, pas au Wuro. Position décalée du dudal ET
+            // des cases privées, sur le côté de l'axe d'entrée.
+            Instancier(PathGalle1, new Vector3(3f, 0f, -1f), Quaternion.Euler(0, -160, 0), "Case_Hote");
 
             // Cases (rayons réels 1.6-1.9 m, écartées de 8 m en X : aucun risque de
             // chevauchement), en zone privée, plus profondément dans la concession.

@@ -21,10 +21,45 @@ Exécution : onglet Scripting > Open > ce fichier > Run Script.
 """
 
 import bpy
+import bmesh
 import math
+import os
 
 TAILLE_TERRAIN = 26.0       # plan carré, couvre toute la scène (campement + concession)
 SUBDIVISIONS_TERRAIN = 30   # résolution du plan avant déplacement
+TUILAGE_SOL = 10             # nombre de répétitions de la texture sur toute la largeur du plan
+
+
+def _charger_texture_reference(nom_fichier):
+    """Charge une image depuis blender/textures/reference/ (même helper que materiaux_case.py)."""
+    if not bpy.data.filepath:
+        print(f"ATTENTION : .blend non sauvegardé — impossible de localiser {nom_fichier}.")
+        return None
+    dossier_blend = os.path.dirname(bpy.data.filepath)
+    chemin = os.path.normpath(os.path.join(dossier_blend, "..", "textures", "reference", nom_fichier))
+    if not os.path.exists(chemin):
+        print(f"ATTENTION : texture introuvable : {chemin} — couleur plate utilisée à la place.")
+        return None
+    return bpy.data.images.load(chemin, check_existing=True)
+
+
+def _tuiler_uv(obj, facteur):
+    """
+    Le plan par défaut n'a qu'une seule répétition de la texture sur toute sa
+    largeur (26 m) — une photo de sable étirée sur 26 m serait floue et
+    méconnaissable. On multiplie les coordonnées UV autour du centre pour que
+    l'image se répète 'facteur' fois (le sampler Image Texture est en mode
+    REPEAT par défaut, compatible glTF).
+    """
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    uv_layer = bm.loops.layers.uv.active
+    for face in bm.faces:
+        for loop in face.loops:
+            uv = loop[uv_layer].uv
+            loop[uv_layer].uv = ((uv.x - 0.5) * facteur + 0.5, (uv.y - 0.5) * facteur + 0.5)
+    bmesh.update_edit_mesh(obj.data)
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 DECALAGE_ENCLOS = (-12.0, 0.0)
 RAYON_ENCLOS = 4.0
@@ -58,10 +93,27 @@ def creer_terrain():
     bpy.ops.object.modifier_apply(modifier=displace.name)
     bpy.ops.object.shade_smooth()
 
+    _tuiler_uv(terrain, TUILAGE_SOL)
+
     mat_sol = bpy.data.materials.new(name="Sol_Laterite")
     mat_sol.use_nodes = True
-    mat_sol.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.55, 0.28, 0.16, 1.0)
-    mat_sol.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.95
+    principled = mat_sol.node_tree.nodes["Principled BSDF"]
+    principled.inputs["Roughness"].default_value = 0.95
+
+    # Texture réelle (sable_ref.jpg, déjà extraite du corpus iconographique
+    # Livrable 1 mais pas encore utilisée) plutôt qu'une couleur plate : même
+    # logique que les matériaux des cases (materiaux_case.py) — reliée
+    # directement aux UV du mesh, sans nœud Mapping/Generated (non exportable
+    # en glTF). Retombe sur la couleur latérite d'origine si l'image manque.
+    image_sol = _charger_texture_reference("sable_ref.jpg")
+    if image_sol is not None:
+        tex_sol = mat_sol.node_tree.nodes.new("ShaderNodeTexImage")
+        tex_sol.location = (-300, 300)
+        tex_sol.image = image_sol
+        mat_sol.node_tree.links.new(tex_sol.outputs["Color"], principled.inputs["Base Color"])
+    else:
+        principled.inputs["Base Color"].default_value = (0.55, 0.28, 0.16, 1.0)
+
     terrain.data.materials.append(mat_sol)
 
     return terrain
