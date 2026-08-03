@@ -16,10 +16,15 @@ import bpy
 
 def creer_materiau_branche():
     """
-    Comme les autres matériaux du projet : grain fin (Noise -> Bump) + variation
-    de couleur à plus grande échelle (Noise -> ColorRamp -> Mix) pour casser
-    l'aplat uniforme — une branche brute a des zones plus grises/usées, pas une
-    teinte parfaitement constante sur toute sa longueur.
+    Couleur plate garantie compatible glTF (même principe que materiaux_case.py
+    / materiaux_mobilier.py) : le Base Color était auparavant piloté par un
+    graphe Noise -> ColorRamp -> Mix pour varier la teinte le long de la
+    branche, mais ce type de graphe n'est pas reconnu par l'exporteur glTF —
+    il retombe silencieusement sur un matériau blanc par défaut (voir
+    rapport-reflexif.md 3.3, déjà corrigé pour les cases mais pas ici).
+    Le grain fin (Noise -> Bump -> Normal) reste : un Normal ne bloque pas
+    l'export, seul le Base Color doit rester une couleur plate ou une texture
+    image reliée aux UV.
     """
     mat = bpy.data.materials.new(name="Branche_bois_brut")
     mat.use_nodes = True
@@ -32,7 +37,7 @@ def creer_materiau_branche():
 
     principled = nodes.new("ShaderNodeBsdfPrincipled")
     principled.location = (300, 0)
-    principled.inputs["Base Color"].default_value = (0.32, 0.24, 0.16, 1.0)  # brun grisé, bois brut
+    principled.inputs["Base Color"].default_value = (0.30, 0.22, 0.15, 1.0)  # brun grisé, bois brut
     principled.inputs["Roughness"].default_value = 0.82
 
     bruit_grain = nodes.new("ShaderNodeTexNoise")
@@ -45,24 +50,6 @@ def creer_materiau_branche():
 
     links.new(bruit_grain.outputs["Fac"], bump.inputs["Height"])
     links.new(bump.outputs["Normal"], principled.inputs["Normal"])
-
-    bruit_patch = nodes.new("ShaderNodeTexNoise")
-    bruit_patch.location = (-400, 150)
-    bruit_patch.inputs["Scale"].default_value = 5.0
-
-    rampe = nodes.new("ShaderNodeValToRGB")
-    rampe.location = (-150, 150)
-    rampe.color_ramp.elements[0].position = 0.35
-    rampe.color_ramp.elements[1].position = 0.65
-
-    mix_couleur = nodes.new("ShaderNodeMixRGB")
-    mix_couleur.location = (100, 150)
-    mix_couleur.inputs["Color1"].default_value = (0.32, 0.24, 0.16, 1.0)
-    mix_couleur.inputs["Color2"].default_value = (0.22, 0.20, 0.18, 1.0)  # zones grisées/usées
-
-    links.new(bruit_patch.outputs["Fac"], rampe.inputs["Fac"])
-    links.new(rampe.outputs["Color"], mix_couleur.inputs["Fac"])
-    links.new(mix_couleur.outputs["Color"], principled.inputs["Base Color"])
 
     links.new(principled.outputs["BSDF"], sortie.inputs["Surface"])
 
