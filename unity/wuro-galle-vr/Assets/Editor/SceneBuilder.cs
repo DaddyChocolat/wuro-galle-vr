@@ -72,7 +72,8 @@ namespace WuroGalle.Editor
             }
             else if (scene.name == "Concession")
             {
-                RemplacerSourceAudio(scene, "Audio_AppelPriere", AudioAppelPriere, new Vector3(0f, 1.5f, -2f), 0.5f, 15f);
+                RemplacerSourceAudio(scene, "Audio_AppelPriere", AudioAppelPriere, new Vector3(5.5f, 1.5f, -2.5f), 0.5f, 15f);
+                RemplacerSourceAudio(scene, "Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
                 RemplacerSourceAudio(scene, "Audio_Mouton", AudioMouton, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
                 RemplacerSourceAudio(scene, "Audio_Vent", AudioWind, new Vector3(0f, 2f, -4f), 0.35f, 30f, spatialBlend: 0.2f);
                 Debug.Log("[SceneBuilder] Audio ajouté à la scène Concession.");
@@ -358,6 +359,7 @@ namespace WuroGalle.Editor
                 AjouterActionPiler(scene, "Mortier_Cases", "Pilon_Cases");
                 AjouterActionSasseoir(scene, "Natte_Cases");
                 AjouterActionPrier(scene, "Natte_Priere");
+                AjouterActionCaresserTroupeau(scene);
                 AjouterActionExaminer(scene, "Dudal",
                     "Le dudal : espace de prière et de rassemblement masculin, proche de l'entrée — " +
                     "zone publique, lieu de sociabilité et de médiation avec l'extérieur. (Le sens exact " +
@@ -365,7 +367,7 @@ namespace WuroGalle.Editor
                 AjouterActionExaminer(scene, "Grenier",
                     "Le grenier à mil : le stockage des récoltes, en position centrale et surveillée " +
                     "plutôt qu'en périphérie — il concentre une bonne part de la sécurité économique du foyer.");
-                Debug.Log("[SceneBuilder] Interactions ajoutées à Concession (boire, piler, s'asseoir, prier, examiner).");
+                Debug.Log("[SceneBuilder] Interactions ajoutées à Concession (boire, piler, s'asseoir, prier, caresser, examiner).");
             }
             else
             {
@@ -1220,7 +1222,13 @@ namespace WuroGalle.Editor
 
             // Canari à l'ombre de la Suudu_1 (côté opposé au Mortier/Pilon pour ne
             // rien chevaucher) : porte l'interaction "boire" (voir AjouterInteractionsSceneActive).
-            Instancier(PathCanari, new Vector3(-1.7f, 0f, 0.7f), Quaternion.identity, "Canari_Foyer");
+            // CORRIGÉ : la position d'origine (-1.7,0.7) était à ~1,06 m du centre de
+            // Suudu_1, alors que la tente mesure réellement ~1,32 m de rayon (bounds
+            // mesurés) — le canari se retrouvait donc clippé sous la toile, pas "à
+            // l'ombre" à côté. Repoussé côté opposé au Mortier/Pilon (toujours hors de
+            // l'espace central du foyer), à ~1,56 m du centre de la tente cette fois —
+            // hors du dôme, avec une marge de sécurité.
+            Instancier(PathCanari, new Vector3(-1.4f, 0f, -1.1f), Quaternion.identity, "Canari_Foyer");
 
             // Feu de camp central, équidistant des deux suudu : Particle System classique
             // (flammes, fumée, braises) + lumière ponctuelle scintillante — choix fait
@@ -1256,13 +1264,20 @@ namespace WuroGalle.Editor
             // docs/Livrable_1/schema-annote-suudu-galle.md ("Galle") : le joueur entre
             // par Z négatif, le dudal est proche de l'entrée, les cases plus profondes.
 
-            // Dudal : espace de prière/rassemblement, zone publique proche de l'entrée.
-            // Forme radialement symétrique (simple disque) : rotation sans effet.
-            Instancier(PathDudal, new Vector3(0f, 0f, -2f), Quaternion.identity, "Dudal");
+            // Dudal : espace de prière/rassemblement, zone publique proche de l'entrée —
+            // mais décalé sur le côté (x=5.5, à l'opposé de l'enclos) plutôt que planté
+            // au centre de l'axe d'entrée. Position d'origine (0,0,-2) mettait le dudal
+            // droit dans l'axe de vue du joueur au spawn (0,0,-4), à touche-touche du
+            // Canari_Entree/Case_Hote : peu compatible avec un moment de recueillement.
+            // Reste dans la même zone publique proche de l'entrée (z<0, cohérent avec
+            // schema-annote-suudu-galle.md) mais dans son propre coin, à l'écart du
+            // passage direct et loin de l'enclos (x=-10.5, voir CreerTroupeauDansEnclos
+            // ci-dessous — un dudal collé au bétail casserait l'intimité recherchée).
+            Instancier(PathDudal, new Vector3(5.5f, 0f, -2.5f), Quaternion.identity, "Dudal");
 
             // Natte de prière posée sur le dudal — annoncé dans dudal_grenier.py comme
             // à faire "au moment de l'assemblage Unity", fait ici.
-            Instancier(PathNatte, new Vector3(0f, 0.02f, -2f), Quaternion.Euler(0, 10, 0), "Natte_Priere");
+            Instancier(PathNatte, new Vector3(5.5f, 0.02f, -2.5f), Quaternion.Euler(0, 10, 0), "Natte_Priere");
 
             // Case d'hôte (suudu hoɓɓe) : documentée dans schema-annote-suudu-galle.md
             // ("proche de l'entrée, l'hôte est reçu sans accéder à l'espace familial
@@ -1303,13 +1318,22 @@ namespace WuroGalle.Editor
             Instancier(PathCalebasse, new Vector3(1.8f, 0f, 2.8f), Quaternion.identity, "Calebasse_Cases");
             Instancier(PathNatte, new Vector3(-1.5f, 0f, 3f), Quaternion.Euler(0, -20, 0), "Natte_Cases");
 
-            // Audio spatialisé : appel à la prière au-dessus du dudal, mouton près de
-            // l'enclos (Paysage, mêmes coordonnées bakées ~(-10.5,0,0)), vent en ambiance
-            // diffuse. Pas de son d'ambiance de village générique : le seul fichier
-            // disponible (uganda-village-at-night) est explicitement nocturne, incohérent
-            // avec l'éclairage de zénith de la scène — écarté plutôt qu'utilisé à tort
-            // (voir note-ethique.md sur la cohérence des sources).
-            CreerSourceAudio("Audio_AppelPriere", AudioAppelPriere, new Vector3(0f, 1.5f, -2f), 0.5f, 15f);
+            // Bétail dans l'enclos (hoggo) : l'enclos existe déjà (baké dans Paysage.glb,
+            // partagé avec Campement) mais restait vide — écart corrigé ici. Effectif
+            // plus modeste qu'au Campement (le gros du troupeau part en transhumance
+            // avec le campement mobile ; la concession garde un noyau domestique plutôt
+            // que le troupeau complet).
+            CreerTroupeauDansEnclos(new Vector3(-10.5f, 0f, 0f), 3.3f, nombre: 4);
+
+            // Audio spatialisé : appel à la prière au-dessus du dudal, mouton + clochettes
+            // près de l'enclos (Paysage, mêmes coordonnées bakées ~(-10.5,0,0), cohérent
+            // avec le bétail maintenant présent), vent en ambiance diffuse. Pas de son
+            // d'ambiance de village générique : le seul fichier disponible
+            // (uganda-village-at-night) est explicitement nocturne, incohérent avec
+            // l'éclairage de zénith de la scène — écarté plutôt qu'utilisé à tort (voir
+            // note-ethique.md sur la cohérence des sources).
+            CreerSourceAudio("Audio_AppelPriere", AudioAppelPriere, new Vector3(5.5f, 1.5f, -2.5f), 0.5f, 15f);
+            CreerSourceAudio("Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
             CreerSourceAudio("Audio_Mouton", AudioMouton, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
             CreerSourceAudio("Audio_Vent", AudioWind, new Vector3(0f, 2f, -4f), 0.35f, 30f, spatialBlend: 0.2f);
 
