@@ -29,6 +29,7 @@ Exécution : headless uniquement (import OBJ tel que téléchargé) :
 import bpy
 import math
 import os
+import numpy as np
 
 DOSSIER_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "source_cc0", "brahman-bull-zebu", "source")
 CHEMIN_OBJ = os.path.join(DOSSIER_SOURCE, "base.obj")
@@ -49,7 +50,17 @@ def mettre_a_lechelle(zebu, longueur_cible):
     bpy.context.view_layer.update()
     coords = [(zebu.matrix_world @ v.co) for v in zebu.data.vertices]
     xs = [c.x for c in coords]
-    longueur_actuelle = max(xs) - min(xs)
+    ys = [c.y for c in coords]
+    etendue_x = max(xs) - min(xs)
+    etendue_y = max(ys) - min(ys)
+    # Bug constaté : l'axe nez-queue du maillage source (Sketchfab, orientation
+    # inconnue à l'import OBJ) ne correspond pas forcément à X. Utiliser X seul
+    # a mesuré la LARGEUR (bête étroite) au lieu de la longueur, d'où une échelle
+    # ~4-5x trop grande (zébu de plusieurs mètres de haut au lieu de ~1,5 m,
+    # constaté via DiagnosticTailles.cs). Après import, Z est déjà l'axe vertical
+    # (Blender Z-up) — la longueur nez-queue est donc la plus grande étendue
+    # HORIZONTALE (X ou Y), quelle que soit l'orientation d'origine du maillage.
+    longueur_actuelle = max(etendue_x, etendue_y)
     if longueur_actuelle <= 0:
         raise RuntimeError("Bounds dégénérés sur le zébu importé.")
     echelle = longueur_cible / longueur_actuelle
@@ -71,10 +82,35 @@ def charger_texture(nom_fichier, colorspace='sRGB'):
     return img
 
 
+def creer_texture_teintee(image_source, teinte, nom):
+    """Multiplie les canaux RGB de image_source par teinte et renvoie une NOUVELLE
+    image (numpy, rapide même sur un PNG 2048x2048). Remplace l'ancienne approche
+    (nœud ShaderNodeMixRGB entre la texture et Base Color) : constaté après export
+    que l'exporteur glTF de Blender ne "voit" pas à travers ce montage — le
+    baseColorFactor exporté restait (1,1,1,1) pour TOUTES les robes, y compris
+    rousse/noire (vérifié côté Unity : DiagnosticTailles.DiagnostiquerMateriauxTroupeau
+    montrait baseColorFactor identique sur les 3 robes, d'où l'aspect gris uniforme
+    en jeu, quelle que soit la robe). Cuire la teinte directement dans les pixels
+    évite toute dépendance à ce que l'exporteur sache reconnaître le montage de
+    nœuds — la texture exportée EST déjà la bonne couleur, sans facteur à extraire."""
+    largeur, hauteur = image_source.size
+    pixels = np.array(image_source.pixels[:], dtype=np.float32).reshape((hauteur, largeur, 4))
+    pixels[:, :, 0] *= teinte[0]
+    pixels[:, :, 1] *= teinte[1]
+    pixels[:, :, 2] *= teinte[2]
+
+    img_teinte = bpy.data.images.new(nom, width=largeur, height=hauteur, alpha=True)
+    img_teinte.colorspace_settings.name = 'sRGB'
+    img_teinte.pixels.foreach_set(pixels.ravel())
+    img_teinte.pack()  # embarquée dans le .blend/l'export, pas de fichier externe à gérer
+    return img_teinte
+
+
 def creer_materiau_pbr(nom, teinte_multiplicative=None):
     """Matériau Principled BSDF branché sur les 4 textures fournies (diffuse/
-    normal/roughness/metallic). teinte_multiplicative (RGB) : si fourni,
-    multiplie la texture diffuse pour une variante de robe sans nouvelle image."""
+    normal/roughness/metallic). teinte_multiplicative (RGB) : si fourni, une
+    variante de la texture diffuse est cuite (pixels multipliés, voir
+    creer_texture_teintee) plutôt que multipliée dans le graphe de nœuds."""
     mat = bpy.data.materials.new(name=nom)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
@@ -87,30 +123,27 @@ def creer_materiau_pbr(nom, teinte_multiplicative=None):
     principled.location = (300, 0)
     links.new(principled.outputs["BSDF"], sortie.inputs["Surface"])
 
+    image_diffuse = charger_texture("texture_diffuse.png", 'sRGB')
+    if teinte_multiplicative is not None:
+        image_diffuse = creer_texture_teintee(image_diffuse, teinte_multiplicative, f"{nom}_diffuse_teintee")
+
     tex_diffuse = nodes.new("ShaderNodeTexImage")
     tex_diffuse.location = (-400, 200)
-    tex_diffuse.image = charger_texture("texture_diffuse.png", 'sRGB')
-
-    if teinte_multiplicative is not None:
-        mix = nodes.new("ShaderNodeMixRGB")
-        mix.location = (-100, 200)
-        mix.blend_type = 'MULTIPLY'
-        mix.inputs["Fac"].default_value = 1.0
-        mix.inputs["Color2"].default_value = (*teinte_multiplicative, 1.0)
-        links.new(tex_diffuse.outputs["Color"], mix.inputs["Color1"])
-        links.new(mix.outputs["Color"], principled.inputs["Base Color"])
-    else:
-        links.new(tex_diffuse.outputs["Color"], principled.inputs["Base Color"])
+    tex_diffuse.image = image_diffuse
+    links.new(tex_diffuse.outputs["Color"], principled.inputs["Base Color"])
 
     tex_rough = nodes.new("ShaderNodeTexImage")
     tex_rough.location = (-400, -50)
     tex_rough.image = charger_texture("texture_roughness.png", 'Non-Color')
     links.new(tex_rough.outputs["Color"], principled.inputs["Roughness"])
 
-    tex_metal = nodes.new("ShaderNodeTexImage")
-    tex_metal.location = (-400, -300)
-    tex_metal.image = charger_texture("texture_metallic.png", 'Non-Color')
-    links.new(tex_metal.outputs["Color"], principled.inputs["Metallic"])
+    # texture_metallic.png du téléchargement Sketchfab est quasi blanche partout
+    # (vérifié à l'œil) : branchée sur Metallic, elle rend la bête ~100% métallique
+    # (surface qui ne réfléchit que l'environnement, pas d'albedo visible — le
+    # pelage apparaissait gris/noir uniforme en jeu au lieu de la texture diffuse
+    # réelle). Un pelage de zébu est organique, pas métallique : valeur constante
+    # à 0 plutôt que de dépendre de cette texture inexploitable.
+    principled.inputs["Metallic"].default_value = 0.0
 
     tex_normal = nodes.new("ShaderNodeTexImage")
     tex_normal.location = (-400, -550)
@@ -174,4 +207,16 @@ if __name__ == "__main__":
         exporter_glb([zebu], [
             os.path.join(script_dir, "ZebuRealiste_roux.glb"),
             os.path.join(repo_root, "unity", "wuro-galle-vr", "Assets", "Models", "Troupeau", "ZebuRealiste_roux.glb"),
+        ])
+
+    # Robe noire : troisième variante demandée (troupeau sahélien réel : robes
+    # blanche/grise, rousse ET noire) — même principe de teinte multiplicative,
+    # sans texture supplémentaire.
+    mat_noir = creer_materiau_pbr("Zebu_Realiste_Noire", teinte_multiplicative=(0.05, 0.05, 0.05))
+    zebu.data.materials.clear()
+    zebu.data.materials.append(mat_noir)
+    if bpy.app.background:
+        exporter_glb([zebu], [
+            os.path.join(script_dir, "ZebuRealiste_noir.glb"),
+            os.path.join(repo_root, "unity", "wuro-galle-vr", "Assets", "Models", "Troupeau", "ZebuRealiste_noir.glb"),
         ])

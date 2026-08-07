@@ -67,12 +67,18 @@ public class CorpsJoueur : MonoBehaviour
         gameObject.SetActive(false); // invisible par défaut (vue FPS) — CameraTierceUtils l'active pour les scènes 3e personne
     }
 
-    /// <summary>Recherche récursive par nom exact — nécessaire ici aussi car ce composant n'a pas accès à l'assembly Editor (voir SceneBuilder.TrouverEnfant, même logique).</summary>
+    /// <summary>
+    /// Recherche récursive par nom — nécessaire ici aussi car ce composant n'a pas accès à
+    /// l'assembly Editor (voir SceneBuilder.TrouverEnfant, même logique). Correspondance par
+    /// SOUS-CHAÎNE (pas seulement exacte) : un rig externe (ex. modèle Sketchfab) peut suffixer
+    /// ses os ("hips_metarig" plutôt que "hips") — Contains() laisse une chance de reconnaître
+    /// ces variantes sans devoir renommer manuellement chaque os importé.
+    /// </summary>
     static Transform TrouverRecursif(Transform racine, string nom)
     {
         foreach (Transform enfant in racine)
         {
-            if (enfant.name == nom) return enfant;
+            if (enfant.name == nom || enfant.name.Contains(nom)) return enfant;
             var trouve = TrouverRecursif(enfant, nom);
             if (trouve != null) return trouve;
         }

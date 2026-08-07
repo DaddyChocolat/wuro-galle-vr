@@ -1,0 +1,11 @@
+Model Information:
+* title:	African Warrior
+* source:	https://sketchfab.com/3d-models/african-warrior-6146c47389a44ad281b0e866bad33fed
+* author:	avenirdesign (https://sketchfab.com/avenirdesign)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "African Warrior" (https://sketchfab.com/3d-models/african-warrior-6146c47389a44ad281b0e866bad33fed) by avenirdesign (https://sketchfab.com/avenirdesign) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
