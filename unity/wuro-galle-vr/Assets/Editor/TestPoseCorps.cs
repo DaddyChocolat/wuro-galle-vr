@@ -116,20 +116,7 @@ namespace WuroGalle.Editor
 
             controleur.enabled = false;
             corps.gameObject.SetActive(true);
-
-            var bassinT = corps.transform.Find("Bassin");
-            var torseT = bassinT != null ? bassinT.Find("Torse") : null;
-            var jambeGT = bassinT != null ? bassinT.Find("Jambe_G") : null;
-            Debug.Log($"[TestPoseCorps] Avant pose — bassinT={(bassinT != null ? bassinT.name : "NULL")} " +
-                $"torseT={(torseT != null ? torseT.name : "NULL")} jambeGT={(jambeGT != null ? jambeGT.name : "NULL")}");
-            if (torseT != null) Debug.Log($"[TestPoseCorps] Avant — torse.localRotation.eulerAngles={torseT.localRotation.eulerAngles}");
-            if (jambeGT != null) Debug.Log($"[TestPoseCorps] Avant — jambeG.localRotation.eulerAngles={jambeGT.localRotation.eulerAngles}");
-
             corps.AppliquerPose(CorpsJoueur.Pose.Genoux);
-
-            if (torseT != null) Debug.Log($"[TestPoseCorps] Après — torse.localRotation.eulerAngles={torseT.localRotation.eulerAngles}");
-            if (jambeGT != null) Debug.Log($"[TestPoseCorps] Après — jambeG.localRotation.eulerAngles={jambeGT.localRotation.eulerAngles}");
-            if (bassinT != null) Debug.Log($"[TestPoseCorps] Après — bassin.localPosition={bassinT.localPosition}");
 
             var camJoueur = controleur.vueCamera.GetComponent<Camera>();
             var camTierce = camTierceT.GetComponent<Camera>();
