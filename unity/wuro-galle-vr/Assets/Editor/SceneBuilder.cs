@@ -47,6 +47,13 @@ namespace WuroGalle.Editor
         // qu'il porte l'interaction "boire" (voir AjouterInteractionsSceneActive).
         const string PathCanari = "Assets/Models/Mobilier/Canari.glb";
 
+        // PNJ (blender/personnage/pnj_base.py) : même base CC0 que le joueur,
+        // remplace le placeholder capsule qui détonnait à côté du joueur/troupeau
+        // maintenant réalistes. Statique (pas d'articulation nécessaire, PNJDialogue
+        // est purement passif).
+        const string PathPNJHomme = "Assets/Models/Personnage/PNJ_Homme.glb";
+        const string PathPNJFemme = "Assets/Models/Personnage/PNJ_Femme.glb";
+
         // Corps du joueur (blender/personnage/personnage_joueur.py) : silhouette
         // articulée modélisée, remplace les capsules générées en code — voir
         // CreerJoueur et Assets/Scripts/CorpsJoueur.cs.
@@ -263,12 +270,12 @@ namespace WuroGalle.Editor
 
             if (scene.name == "Campement")
             {
-                RemplacerPNJ(scene, "PNJ_Berger", new Vector3(-1f, 0f, 1f), Quaternion.Euler(0, -30, 0));
+                RemplacerPNJ(scene, "PNJ_Berger", PathPNJHomme, new Vector3(-1f, 0f, 1f), Quaternion.Euler(0, -30, 0));
                 Debug.Log("[SceneBuilder] PNJ_Berger ajouté à Campement (pas de ligne audio assignée).");
             }
             else if (scene.name == "Concession")
             {
-                RemplacerPNJ(scene, "PNJ_Femme", new Vector3(0.5f, 0f, 3.5f), Quaternion.Euler(0, 160, 0));
+                RemplacerPNJ(scene, "PNJ_Femme", PathPNJFemme, new Vector3(0.5f, 0f, 3.5f), Quaternion.Euler(0, 160, 0));
                 Debug.Log("[SceneBuilder] PNJ_Femme ajouté à Concession (pas de ligne audio assignée).");
             }
             else
@@ -281,32 +288,28 @@ namespace WuroGalle.Editor
             EditorSceneManager.SaveScene(scene);
         }
 
-        static void RemplacerPNJ(Scene scene, string nom, Vector3 position, Quaternion rotation)
+        static void RemplacerPNJ(Scene scene, string nom, string cheminModele, Vector3 position, Quaternion rotation)
         {
             var existant = TrouverDansScene(scene, nom);
             if (existant != null) Object.DestroyImmediate(existant);
-            CreerPNJPlaceholder(nom, position, rotation);
+            CreerPNJPlaceholder(nom, cheminModele, position, rotation);
         }
 
-        static GameObject CreerPNJPlaceholder(string nom, Vector3 position, Quaternion rotation)
+        static GameObject CreerPNJPlaceholder(string nom, string cheminModele, Vector3 position, Quaternion rotation)
         {
             var racine = new GameObject(nom);
             racine.transform.position = position;
             racine.transform.rotation = rotation;
 
-            // Corps placeholder : capsule teintée sombre et neutre, sans trait — respecte
-            // le principe "silhouettes sans traits individualisés" (note éthique) en
-            // attendant un vrai modèle stylisé fait en Blender.
-            var corps = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            corps.name = "Corps_Placeholder";
+            // Corps : base humaine CC0 réelle (blender/personnage/pnj_base.py), même
+            // source/teinte que le joueur — remplace l'ancien placeholder capsule.
+            // Toujours sans visage ni traits sculptés (note éthique, silhouette sans
+            // traits individualisés) : ce n'est pas la géométrie qui a changé de
+            // principe, seulement sa qualité par rapport à une capsule brute.
+            var corps = Instancier(cheminModele, Vector3.zero, Quaternion.identity, "Corps");
             corps.transform.SetParent(racine.transform);
-            corps.transform.localPosition = new Vector3(0f, 0.9f, 0f);
-            corps.transform.localScale = new Vector3(0.5f, 0.9f, 0.5f); // ~1,8 m de haut
-            Object.DestroyImmediate(corps.GetComponent<Collider>()); // pas d'obstacle physique pour l'instant
-
-            var mat = new Material(Shader.Find("Standard"));
-            mat.color = new Color(0.15f, 0.12f, 0.1f);
-            corps.GetComponent<Renderer>().material = mat;
+            corps.transform.localPosition = Vector3.zero;
+            corps.transform.localRotation = Quaternion.identity;
 
             // Zone de dialogue : sur la racine (non affectée par le scale du corps).
             var zone = racine.AddComponent<SphereCollider>();
