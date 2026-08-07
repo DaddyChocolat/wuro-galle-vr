@@ -37,7 +37,16 @@ public static class EauCanariUtils
         go.transform.rotation = Quaternion.LookRotation(trajet.normalized);
 
         var ps = go.AddComponent<ParticleSystem>();
+        // AddComponent<ParticleSystem>() démarre la lecture immédiatement (Play On
+        // Awake = true par défaut) — modifier main.duration juste après, sur un
+        // système déjà en train de jouer, provoque l'erreur console "Setting the
+        // duration while system is still playing is not supported". On l'arrête
+        // avant de toucher au module main, et on désactive playOnAwake pour ne pas
+        // relancer tout seul avant le ps.Play() explicite plus bas.
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
         var main = ps.main;
+        main.playOnAwake = false;
         main.duration = duree;
         main.loop = false;
         // Vitesse calibrée pour parcourir la distance canari->bouche pendant `duree`
