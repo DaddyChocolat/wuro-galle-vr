@@ -1,133 +1,84 @@
 """
-Corps du joueur — silhouette stylisée articulée (Wuro & Galle)
+Corps du joueur — base humaine réelle (rig complet), Wuro & Galle
 
-Remplace le placeholder de capsules générées en code (CorpsJoueur.cs,
-Assets/Scripts/) par une vraie géométrie modélisée, dans le même esprit que
-les autres modules du projet : segments tronconiques (technique "tour de
-potier" déjà utilisée pour le canari/la calebasse — bmesh.ops.spin sur un
-profil 2D) plutôt que des primitives brutes, pour une silhouette moins
-"jeu de blocs" qu'une simple capsule.
+Remplace la version précédente (segments tronconiques procéduraux, sans
+genou) par une VRAIE base mesh humaine rigged, sourcée en CC0 : "Human
+Basemeshes" par treesclimber, OpenGameArt.org
+(https://opengameart.org/content/human-basemeshes), licence CC0 (domaine
+public, aucune attribution requise). ~580 sommets, squelette complet
+(hanche > colonne > thorax > cou/tête, épaule > bras > avant-bras > main
+avec doigts individuels, cuisse > tibia > pied par jambe) — un vrai genou
+articulé, ce que la version précédente n'avait pas.
 
-Silhouette sans traits individualisés (note éthique, *semteende*) : pas de
-visage, pas de détail vestimentaire figuratif — un matériau neutre sombre
-unique, identique à celui déjà utilisé pour le placeholder des PNJ
-(SceneBuilder.CreerPNJPlaceholder) et l'ancien corps du joueur, pour rester
-visuellement cohérent entre les deux.
+Pourquoi ne pas juste ouvrir le fichier CC0 tel quel : le .blend original
+fait planter Blender 4.1 au chargement normal (shape key corrompue,
+"KEKey.000 has an invalid 'from' pointer") — contournement : on APPEND
+seulement les objets utiles via bpy.data.libraries.load() plutôt que
+d'ouvrir le fichier comme scène principale (ce qui évite de charger l'état
+fenêtre/UI corrompu qui cause le crash).
 
-Point important pour l'articulation : contrairement à une capsule Unity
-(pivot au centre géométrique), chaque segment ici a son ORIGINE À
-L'ARTICULATION (hanche pour la jambe, taille pour le torse, épaule pour le
-bras) et la géométrie s'étend depuis ce point — pour qu'une rotation
-appliquée côté Unity (CorpsJoueur.AppliquerPose) pivote vraiment depuis
-l'articulation, pas depuis le milieu du segment.
+Sans visage ni traits sculptés (le mesh source n'en a pas — un des critères
+de choix), matériau teinte de peau appliqué ici (voir note éthique :
+silhouette sans traits individualisés).
 
-Hiérarchie : tous les segments sont exportés à plat (sans parenté Blender)
-positionnés en coordonnées MONDE formant un bonhomme debout, pieds au sol
-(Z=0) — c'est Assets/Scripts/CorpsJoueur.cs qui reconstruit la hiérarchie
-Bassin > Torse > Tête / Bras_G / Bras_D, Bassin > Jambe_G / Jambe_D côté
-Unity après import (SetParent avec worldPositionStays=true : la pose
-debout définie ici est préservée, pas besoin de recalculer les offsets
-à la main).
-
-Exécution interactive : onglet Scripting > Open > ce fichier > Run Script.
-Exécution headless (génère + exporte automatiquement) :
+Exécution : headless uniquement pour l'instant (le fichier source doit être
+chargé via bpy.data.libraries.load, pas via l'UI standard) :
   blender --background --python personnage_joueur.py
 """
 
 import bpy
-import bmesh
-import math
 import os
 
-
-def creer_mesh_depuis_profil(nom, points_profil, segments=10):
-    """Identique à canari.py/generer_mobilier.py : spin d'un profil 2D
-    (rayon, z) autour de l'axe Z local pour un solide de révolution lisse,
-    sans les coutures dures d'une capsule assemblée à partir de primitives."""
-    mesh = bpy.data.meshes.new(nom)
-    bm = bmesh.new()
-
-    verts_profil = [bm.verts.new((r, 0, z)) for (r, z) in points_profil]
-    for i in range(len(verts_profil) - 1):
-        bm.edges.new((verts_profil[i], verts_profil[i + 1]))
-
-    bmesh.ops.spin(
-        bm,
-        geom=bm.verts[:] + bm.edges[:],
-        cent=(0, 0, 0),
-        axis=(0, 0, 1),
-        angle=math.radians(360),
-        steps=segments,
-        use_duplicate=False,
-    )
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
-    bm.normal_update()
-
-    bm.to_mesh(mesh)
-    bm.free()
-
-    obj = bpy.data.objects.new(nom, mesh)
-    bpy.context.collection.objects.link(obj)
-    return obj
+CHEMIN_SOURCE_CC0 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "source_cc0", "Human Basemeshes.blend")
+HAUTEUR_CIBLE = 1.78  # m, cohérent avec CharacterController.height=1.8 (SceneBuilder.CreerJoueur)
 
 
-def creer_segment(nom, profil, position_monde):
-    """Segment tronconique dont l'origine (0,0,0) est au point d'articulation
-    (voir profil de chaque appelant) ; position_monde place cette
-    articulation dans la scène."""
-    obj = creer_mesh_depuis_profil(nom, profil)
-    obj.location = position_monde
-    return obj
+def charger_base_cc0(nom_mesh, nom_armature):
+    """Append (pas open/link) pour éviter le crash au chargement direct du .blend source (voir docstring)."""
+    with bpy.data.libraries.load(CHEMIN_SOURCE_CC0, link=False) as (data_from, data_to):
+        data_to.objects = [n for n in data_from.objects if n in (nom_mesh, nom_armature)]
+
+    for obj in data_to.objects:
+        if obj is not None:
+            bpy.context.collection.objects.link(obj)
+
+    mesh = bpy.data.objects[nom_mesh]
+    armature = bpy.data.objects[nom_armature]
+    return mesh, armature
 
 
-def creer_tete(position_monde, rayon=0.13):
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=rayon, segments=12, ring_count=8, location=position_monde)
-    tete = bpy.context.active_object
-    tete.name = "Tete"
-    return tete
+def mettre_a_lechelle_et_poser_au_sol(mesh, armature, hauteur_cible):
+    """Redimensionne l'ensemble mesh+armature pour une hauteur totale donnée, pieds au sol (Z=0)."""
+    # Applique toute transformation en attente pour lire des bounds propres.
+    bpy.context.view_layer.update()
+
+    min_z = min((mesh.matrix_world @ v.co).z for v in mesh.data.vertices)
+    max_z = max((mesh.matrix_world @ v.co).z for v in mesh.data.vertices)
+    hauteur_actuelle = max_z - min_z
+    if hauteur_actuelle <= 0:
+        raise RuntimeError("Hauteur du mesh source invalide (bounds dégénérés).")
+
+    echelle = hauteur_cible / hauteur_actuelle
+    armature.scale = (echelle, echelle, echelle)
+    bpy.context.view_layer.update()
+
+    # Repositionne pour que le pied le plus bas touche Z=0 après mise à l'échelle.
+    min_z_apres = min((mesh.matrix_world @ v.co).z for v in mesh.data.vertices)
+    armature.location.z -= min_z_apres
+    bpy.context.view_layer.update()
 
 
 def creer_materiau_peau():
-    """
-    Teinte de peau chaude et naturelle plutôt que le gris neutre uniforme
-    utilisé jusqu'ici — le personnage représente quelqu'un du Diamaré
-    (Sahel camerounais), un silhouette grise ne le lisait pas comme une
-    personne du tout. RESTE volontairement sans visage ni traits
-    individualisés (note éthique, *semteende*) : un aplat de couleur stylisé,
-    pas un shader de peau réaliste ni une tentative de représenter "la"
-    couleur de peau africaine — juste un ton plausible et respectueux plutôt
-    qu'un gris qui n'évoquait rien de spécifique. Différent du gris du
-    placeholder PNJ (SceneBuilder.CreerPNJPlaceholder) : écart assumé pour
-    l'instant, les PNJ restent des silhouettes plus abstraites/en retrait,
-    le joueur est ce qu'on regarde le plus souvent (bras, corps en 3e
-    personne) donc mérite cette touche en premier.
-    """
+    """Teinte de peau chaude, assombrie/resaturée pour rester lisible sous le
+    soleil de zénith + color grading chaud de la scène (voir SceneBuilder.
+    ConfigurerColorGrading) — même valeur que la version précédente
+    (0.24,0.13,0.08), qui se détachait bien du décor en test."""
     mat = bpy.data.materials.new(name="Personnage_Peau")
     mat.use_nodes = True
     principled = mat.node_tree.nodes["Principled BSDF"]
-    # Assombri/resaturé par rapport à un premier essai (0.36,0.22,0.14) : sous
-    # le soleil de zénith + color grading chaud de la scène (voir
-    # SceneBuilder.ConfigurerColorGrading), cette première teinte délavait
-    # presque au même ton que les murs en banco des cases — le personnage se
-    # fondait dans le décor au lieu de s'en détacher comme une personne.
     principled.inputs["Base Color"].default_value = (0.24, 0.13, 0.08, 1.0)
     principled.inputs["Roughness"].default_value = 0.55
     return mat
-
-
-def rapport_triangles(objets):
-    print("\n--- Budget triangles (Personnage joueur) ---")
-    total = 0
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    for obj in objets:
-        eval_obj = obj.evaluated_get(depsgraph)
-        mesh_eval = eval_obj.to_mesh()
-        mesh_eval.calc_loop_triangles()
-        n_tris = len(mesh_eval.loop_triangles)
-        eval_obj.to_mesh_clear()
-        total += n_tris
-        print(f"  {obj.name:10s} : {n_tris:5d} triangles")
-    print(f"  {'TOTAL':10s} : {total:5d} triangles\n")
 
 
 def exporter_glb(objets, chemins):
@@ -142,8 +93,10 @@ def exporter_glb(objets, chemins):
             filepath=chemin,
             export_format='GLB',
             use_selection=True,
-            export_apply=True,
+            export_apply=False,  # NE PAS appliquer les transforms : casserait le binding armature/mesh (skinning)
             export_yup=True,
+            export_skins=True,
+            export_animations=False,  # pas d'animation baked ici — les poses sont pilotées côté Unity (CorpsJoueur.cs)
         )
         print(f"[personnage_joueur.py] Exporté -> {chemin}")
 
@@ -152,50 +105,24 @@ if __name__ == "__main__":
     if bpy.app.background:
         bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    # Hauteur totale visée ~1,8 m (cohérent avec CharacterController.height
-    # dans SceneBuilder.CreerJoueur, et la caméra à hauteur des yeux Y=1,6 m).
+    mesh, armature = charger_base_cc0("basemesh_male", "basemesh_male_rig")
+    mesh.name = "Personnage_Mesh"
+    armature.name = "Personnage_Armature"
 
-    # Jambes : origine à la hanche (Z=0,85, haut du profil), s'étend au sol.
-    profil_jambe = [(0.11, 0.0), (0.095, -0.42), (0.08, -0.85)]
-    jambe_g = creer_segment("Jambe_G", profil_jambe, (-0.12, 0.0, 0.85))
-    jambe_d = creer_segment("Jambe_D", profil_jambe, (0.12, 0.0, 0.85))
-
-    # Bassin : bloc légèrement tronconique, centré entre les deux hanches.
-    profil_bassin = [(0.18, 0.10), (0.19, -0.02), (0.16, -0.10)]
-    bassin = creer_segment("Bassin", profil_bassin, (0.0, 0.0, 0.95))
-
-    # Torse : origine à la taille (attache sur le bassin), s'étend vers les
-    # épaules — plus large en haut (carrure) qu'à la taille.
-    profil_torse = [(0.17, 0.0), (0.19, 0.15), (0.22, 0.35), (0.20, 0.50)]
-    torse = creer_segment("Torse", profil_torse, (0.0, 0.0, 1.05))
-
-    # Tête : sphère simple, pas de traits (note éthique).
-    tete = creer_tete((0.0, 0.0, 1.68))
-
-    # Bras : origine à l'épaule, légèrement en retrait du sommet du torse.
-    profil_bras = [(0.05, 0.0), (0.045, -0.25), (0.04, -0.5)]
-    bras_g = creer_segment("Bras_G", profil_bras, (-0.24, 0.0, 1.48))
-    bras_d = creer_segment("Bras_D", profil_bras, (0.24, 0.0, 1.48))
-
-    parties = [bassin, torse, tete, bras_g, bras_d, jambe_g, jambe_d]
-
-    for obj in parties:
-        bpy.ops.object.select_all(action='DESELECT')
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.shade_smooth()
+    mettre_a_lechelle_et_poser_au_sol(mesh, armature, HAUTEUR_CIBLE)
 
     mat = creer_materiau_peau()
-    for obj in parties:
-        obj.data.materials.clear()
-        obj.data.materials.append(mat)
+    mesh.data.materials.clear()
+    mesh.data.materials.append(mat)
 
-    rapport_triangles(parties)
+    print(f"\n--- Personnage (base CC0 rigged) ---")
+    print(f"  {mesh.name} : {len(mesh.data.vertices)} sommets, {len(mesh.data.polygons)} polygones")
+    print(f"  Squelette : {len(armature.data.bones)} os\n")
 
     if bpy.app.background:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         repo_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
-        exporter_glb(parties, [
+        exporter_glb([mesh, armature], [
             os.path.join(script_dir, "Personnage.glb"),
             os.path.join(repo_root, "unity", "wuro-galle-vr", "Assets", "Models", "Personnage", "Personnage.glb"),
         ])
