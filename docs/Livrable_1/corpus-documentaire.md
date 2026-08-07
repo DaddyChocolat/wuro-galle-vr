@@ -37,6 +37,7 @@ Une source initialement retenue pour ce thème (*Nyorgo Maroua*, OUMAROU OB, Wik
 ## Modèles 3D externes
 
 - treesclimber, *Human Basemeshes* (base humaine masculine/féminine, rigged, sans traits sculptés), OpenGameArt.org — https://opengameart.org/content/human-basemeshes — licence CC0 (domaine public, aucune attribution requise). Utilisée pour le corps du joueur (`blender/personnage/personnage_joueur.py`) à la place des segments procéduraux précédents ; conservée sans visage ni traits individualisés pour rester cohérente avec `note-ethique.md` (silhouette sans traits, *semteende*), seule la teinte de peau a été modifiée (matériau ajouté, pas de retouche de la géométrie).
+- maximorengifo2022, *Brahman bull Zebu*, Sketchfab — https://sketchfab.com/3d-models/brahman-bull-zebu-3e2254015caa4c878347e2985a927edd — licence CC Attribution (CC-BY 4.0) : **attribution requise**, respectée par cette entrée. Remplace le block-out metaball (`zebu_base.py`) du troupeau (`blender/troupeau/zebu_realiste.py`) — silhouette réelle avec bosse et cornes en lyre (trait distinctif du zébu, absent des alternatives libres de connexion trouvées sur Poly Pizza). Deux robes (blanche/rousse) exportées depuis le même maillage source, la teinte rousse appliquée par multiplication shader plutôt qu'une seconde texture peinte.
 
 ## Fonds sonores
 

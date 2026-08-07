@@ -24,8 +24,13 @@ namespace WuroGalle.Editor
         const string PathGalle2 = "Assets/Models/Galle/galle_2.glb";
         const string PathGalle3 = "Assets/Models/Galle/galle_3.glb";
         const string PathPaysage = "Assets/Models/Paysage/Paysage.glb"; // inclut déjà l'enclos (hoggo) et la mare
-        const string PathTroupeauBlanc = "Assets/Models/Troupeau/troupeau_robe_blanche.glb";
-        const string PathTroupeauRoux = "Assets/Models/Troupeau/troupeau_robe_rousse.glb";
+        // Remplace le block-out metaball (troupeau_robe_blanche/rousse.glb) par un
+        // vrai modèle détaillé — voir blender/troupeau/zebu_realiste.py (base
+        // CC-BY, "Brahman bull Zebu" par maximorengifo2022, Sketchfab ; deux robes
+        // exportées depuis le même maillage, teinte roux appliquée par
+        // multiplication shader plutôt qu'une seconde texture peinte).
+        const string PathTroupeauBlanc = "Assets/Models/Troupeau/ZebuRealiste_blanc.glb";
+        const string PathTroupeauRoux = "Assets/Models/Troupeau/ZebuRealiste_roux.glb";
         const string PathDudal = "Assets/Models/Galle/dudal.glb";
         const string PathGrenier = "Assets/Models/Galle/grenier.glb";
         const string PathCalebasse = "Assets/Models/Mobilier/Calebasse.glb";
@@ -1115,7 +1120,10 @@ namespace WuroGalle.Editor
         {
             var parent = new GameObject("Troupeau");
             var rng = new System.Random(11);
-            const float distanceMin = 1.1f;
+            // 1,1 m suffisait pour l'ancien block-out metaball (bien plus petit) ;
+            // le zébu réaliste (zebu_realiste.py) fait ~2,2 m de long — espacement
+            // relevé pour éviter que deux têtes se chevauchent visiblement.
+            const float distanceMin = 1.8f;
             var positions = new List<Vector2>();
 
             int placees = 0;
