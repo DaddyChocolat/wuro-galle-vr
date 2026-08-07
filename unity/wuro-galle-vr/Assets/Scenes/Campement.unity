@@ -18742,7 +18742,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2be7fb358324ad242a57ef8d1f160891, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  lignes: []
+  lignes:
+  - {fileID: 8300000, guid: 58c8f24d0dbc9c94e9e483c29f4c964c, type: 3}
+  - {fileID: 8300000, guid: 814733dedd0a67c40a3feff32aae618a, type: 3}
+  - {fileID: 8300000, guid: 036f53878fb2eef4a86dc9e689ee0f19, type: 3}
   delaiRejeu: 8
 --- !u!82 &1636879659
 AudioSource:
