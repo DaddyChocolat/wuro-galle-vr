@@ -1,20 +1,26 @@
 using UnityEngine;
 
 /// <summary>
-/// Corps du joueur : silhouette simple (capsules/sphère), même esprit que le
-/// placeholder des PNJ dans SceneBuilder.CreerPNJPlaceholder — "silhouette
-/// sans traits individualisés" (note éthique) en attendant un vrai modèle
-/// stylisé fait en Blender. Sert à donner au joueur un corps visible pendant
-/// les interactions scriptées à la 3e personne (prier, s'asseoir — voir
-/// CameraTierceUtils), pas en vue FPS normale (le corps resterait invisible/
-/// clippé si affiché juste sous une caméra placée à hauteur des yeux).
+/// Corps du joueur : silhouette stylisée articulée, modélisée en Blender
+/// (blender/personnage/personnage_joueur.py — solides de révolution tronconiques,
+/// pas de capsules brutes) et importée en glTF. Remplace l'ancien placeholder
+/// de capsules générées en code : même esprit "silhouette sans traits
+/// individualisés" (note éthique, *semteende*), mais des proportions et une
+/// silhouette réelles plutôt que des primitives.
 ///
-/// N'a pas de squelette articulé : les poses (Debout/Genoux/Assis) sont de
-/// simples préréglages de position/rotation sur quelques capsules, pas une
-/// animation osseuse — simplification assumée pour rester dans le même
-/// registre "placeholder fonctionnel" que le reste du projet (voir
-/// AudioProceduralUtils, CreerTextureProceduraleSol) en attendant un vrai
-/// personnage rigged si le temps le permet plus tard.
+/// La hiérarchie (Bassin > Torse > Tête / Bras_G / Bras_D, Bassin > Jambe_G /
+/// Jambe_D) est déjà construite à l'édition par SceneBuilder.CreerJoueur —
+/// ce composant se contente de RETROUVER les transforms par nom (recherche
+/// récursive, la profondeur exacte n'importe pas) et d'appliquer les poses.
+/// Chaque segment a son origine à l'articulation réelle (hanche/taille/
+/// épaule, voir le script Blender) plutôt qu'au centre géométrique d'une
+/// capsule : une rotation locale pivote donc vraiment depuis l'articulation.
+///
+/// Invisible par défaut (Awake() désactive gameObject) — affiché seulement
+/// pendant les séquences 3e personne (prier/s'asseoir, voir
+/// CameraTierceUtils), pour la même raison que l'ancien placeholder : un
+/// corps visible sous une caméra à hauteur des yeux se clipperait en vue FPS
+/// normale.
 /// </summary>
 public class CorpsJoueur : MonoBehaviour
 {
@@ -23,62 +29,52 @@ public class CorpsJoueur : MonoBehaviour
     private Transform bassin, torse, tete, brasG, brasD, jambeG, jambeD;
     private Vector3 bassinPosDebout;
     private Quaternion torseRotDebout, jambeGRotDebout, jambeDRotDebout;
+    private bool pretACondition;
 
     void Awake()
     {
-        Construire();
+        bassin = TrouverRecursif(transform, "Bassin");
+        torse = bassin != null ? TrouverRecursif(bassin, "Torse") : null;
+        tete = torse != null ? TrouverRecursif(torse, "Tete") : null;
+        brasG = torse != null ? TrouverRecursif(torse, "Bras_G") : null;
+        brasD = torse != null ? TrouverRecursif(torse, "Bras_D") : null;
+        jambeG = bassin != null ? TrouverRecursif(bassin, "Jambe_G") : null;
+        jambeD = bassin != null ? TrouverRecursif(bassin, "Jambe_D") : null;
+
+        pretACondition = bassin != null && torse != null && jambeG != null && jambeD != null;
+        if (!pretACondition)
+        {
+            Debug.LogWarning("[CorpsJoueur] Hiérarchie incomplète (Bassin/Torse/Jambe_G/Jambe_D introuvables) — " +
+                "vérifie que SceneBuilder.CreerJoueur a bien instancié et reparenté Personnage.glb.");
+            gameObject.SetActive(false);
+            return;
+        }
+
+        bassinPosDebout = bassin.localPosition;
+        torseRotDebout = torse.localRotation;
+        jambeGRotDebout = jambeG.localRotation;
+        jambeDRotDebout = jambeD.localRotation;
+
         gameObject.SetActive(false); // invisible par défaut (vue FPS) — CameraTierceUtils l'active pour les scènes 3e personne
     }
 
-    void Construire()
+    /// <summary>Recherche récursive par nom exact, comme SceneBuilder.TrouverEnfant — nécessaire ici aussi car ce composant n'a pas accès à l'assembly Editor.</summary>
+    static Transform TrouverRecursif(Transform racine, string nom)
     {
-        var mat = new Material(Shader.Find("Standard"));
-        mat.color = new Color(0.16f, 0.13f, 0.11f); // même teinte neutre/sombre que le placeholder PNJ
-
-        bassin = CreerCapsule("Bassin", transform, new Vector3(0f, 0.9f, 0f), new Vector3(0.28f, 0.18f, 0.28f), mat);
-        bassinPosDebout = bassin.localPosition;
-
-        torse = CreerCapsule("Torse", bassin, new Vector3(0f, 0.55f, 0f), new Vector3(0.24f, 0.35f, 0.16f), mat);
-        torseRotDebout = torse.localRotation;
-
-        tete = CreerSphere("Tete", torse, new Vector3(0f, 0.62f, 0f), 0.14f, mat);
-
-        brasG = CreerCapsule("Bras_G", torse, new Vector3(-0.28f, 0.15f, 0f), new Vector3(0.07f, 0.32f, 0.07f), mat);
-        brasD = CreerCapsule("Bras_D", torse, new Vector3(0.28f, 0.15f, 0f), new Vector3(0.07f, 0.32f, 0.07f), mat);
-
-        jambeG = CreerCapsule("Jambe_G", bassin, new Vector3(-0.12f, -0.45f, 0f), new Vector3(0.1f, 0.45f, 0.1f), mat);
-        jambeD = CreerCapsule("Jambe_D", bassin, new Vector3(0.12f, -0.45f, 0f), new Vector3(0.1f, 0.45f, 0.1f), mat);
-        jambeGRotDebout = jambeG.localRotation;
-        jambeDRotDebout = jambeD.localRotation;
-    }
-
-    static Transform CreerCapsule(string nom, Transform parent, Vector3 posLocale, Vector3 echelle, Material mat)
-    {
-        var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        go.name = nom;
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = posLocale;
-        go.transform.localScale = echelle;
-        Object.DestroyImmediate(go.GetComponent<Collider>()); // pas d'obstacle physique, purement visuel
-        go.GetComponent<Renderer>().sharedMaterial = mat;
-        return go.transform;
-    }
-
-    static Transform CreerSphere(string nom, Transform parent, Vector3 posLocale, float rayon, Material mat)
-    {
-        var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        go.name = nom;
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = posLocale;
-        go.transform.localScale = Vector3.one * rayon * 2f;
-        Object.DestroyImmediate(go.GetComponent<Collider>());
-        go.GetComponent<Renderer>().sharedMaterial = mat;
-        return go.transform;
+        foreach (Transform enfant in racine)
+        {
+            if (enfant.name == nom) return enfant;
+            var trouve = TrouverRecursif(enfant, nom);
+            if (trouve != null) return trouve;
+        }
+        return null;
     }
 
     /// <summary>Applique instantanément une pose (pas d'interpolation ici — CameraTierceUtils gère le fondu de la caméra autour).</summary>
     public void AppliquerPose(Pose pose)
     {
+        if (!pretACondition) return;
+
         switch (pose)
         {
             case Pose.Debout:

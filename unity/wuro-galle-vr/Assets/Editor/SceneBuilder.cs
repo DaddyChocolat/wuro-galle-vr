@@ -42,6 +42,11 @@ namespace WuroGalle.Editor
         // qu'il porte l'interaction "boire" (voir AjouterInteractionsSceneActive).
         const string PathCanari = "Assets/Models/Mobilier/Canari.glb";
 
+        // Corps du joueur (blender/personnage/personnage_joueur.py) : silhouette
+        // articulée modélisée, remplace les capsules générées en code — voir
+        // CreerJoueur et Assets/Scripts/CorpsJoueur.cs.
+        const string PathPersonnage = "Assets/Models/Personnage/Personnage.glb";
+
         // Sons libres de droits déjà présents dans Assets/Audio/ (voir note-ethique.md
         // pour les critères de sélection des sources).
         const string AudioFeu = "Assets/Audio/637523__kyles__fire-small-campfire-crackling-short-air-tone.flac";
@@ -1672,19 +1677,61 @@ namespace WuroGalle.Editor
             // point de départ au lieu de tomber indéfiniment.
             joueur.AddComponent<SecuriteChute>();
 
-            // Corps du joueur (Assets/Scripts/CorpsJoueur.cs) : silhouette placeholder,
-            // invisible en vue FPS normale (Awake() désactive gameObject), affichée
-            // seulement pendant les séquences 3e personne (prier/s'asseoir — voir
-            // CameraTierceUtils). SUR UN ENFANT DÉDIÉ ("Corps"), PAS sur le Joueur
-            // lui-même : CorpsJoueur.Awake() fait gameObject.SetActive(false), et
-            // l'appliquer directement sur la racine Joueur désactiverait aussi
-            // CameraJoueur/FirstPersonController/CameraTierce (tous ses enfants) —
-            // bug réel observé (plus de caméra active du tout dès le premier frame,
-            // "no audio listener" en boucle en Play mode).
-            var corpsGO = new GameObject("Corps");
+            // Corps du joueur : silhouette modélisée en Blender (voir
+            // blender/personnage/personnage_joueur.py), pas des capsules brutes.
+            // Instancié à plat (Personnage.glb contient Bassin/Torse/Tete/Bras_G/
+            // Bras_D/Jambe_G/Jambe_D comme enfants directs, sans hiérarchie —
+            // reparentés ici en Bassin > Torse > Tête/Bras, Bassin > Jambes avec
+            // worldPositionStays=true : la pose debout définie dans le script
+            // Blender est préservée telle quelle, pas besoin de recalculer les
+            // offsets à la main). CorpsJoueur.cs (Assets/Scripts/) retrouve ensuite
+            // ces transforms par nom et gère les poses (Awake() désactive
+            // gameObject, invisible en vue FPS normale, affiché seulement pendant
+            // les séquences 3e personne — voir CameraTierceUtils).
+            // SUR UN ENFANT DÉDIÉ ("Corps"), PAS sur le Joueur lui-même :
+            // CorpsJoueur.Awake() fait gameObject.SetActive(false), et l'appliquer
+            // directement sur la racine Joueur désactiverait aussi CameraJoueur/
+            // FirstPersonController/CameraTierce (tous ses enfants) — bug réel
+            // observé (plus de caméra active du tout dès le premier frame, "no
+            // audio listener" en boucle en Play mode).
+            var corpsGO = Instancier(PathPersonnage, Vector3.zero, Quaternion.identity, "Corps");
             corpsGO.transform.SetParent(joueur.transform);
             corpsGO.transform.localPosition = Vector3.zero;
             corpsGO.transform.localRotation = Quaternion.identity;
+
+            // Décroche complètement l'instance du prefab Personnage.glb AVANT de
+            // reparenter ses parties entre elles : sans ça, reparenter un enfant
+            // (Torse) sous un autre enfant (Bassin) DU MÊME prefab instance
+            // s'applique bien dans la session Éditeur en cours, mais ne survit PAS
+            // à un SaveScene/reload — au rechargement, Unity resynchronise
+            // l'instance sur la structure plate d'origine du prefab et la
+            // reparenté est silencieusement perdue (bug réel constaté : Torse/
+            // Jambe_G revenaient enfants directs de "Corps" après rechargement,
+            // AppliquerPose ne trouvait plus rien et ne faisait donc plus rien).
+            PrefabUtility.UnpackPrefabInstance(corpsGO, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+
+            var bassinT = TrouverEnfant(corpsGO.transform, "Bassin");
+            if (bassinT == null)
+            {
+                Debug.LogError("[SceneBuilder] 'Bassin' introuvable dans Personnage.glb — corps du joueur incomplet.");
+            }
+            else
+            {
+                var torseT = TrouverEnfant(corpsGO.transform, "Torse");
+                var teteT = TrouverEnfant(corpsGO.transform, "Tete");
+                var brasGT = TrouverEnfant(corpsGO.transform, "Bras_G");
+                var brasDT = TrouverEnfant(corpsGO.transform, "Bras_D");
+                var jambeGT = TrouverEnfant(corpsGO.transform, "Jambe_G");
+                var jambeDT = TrouverEnfant(corpsGO.transform, "Jambe_D");
+
+                if (torseT != null) torseT.SetParent(bassinT, true);
+                if (teteT != null && torseT != null) teteT.SetParent(torseT, true);
+                if (brasGT != null && torseT != null) brasGT.SetParent(torseT, true);
+                if (brasDT != null && torseT != null) brasDT.SetParent(torseT, true);
+                if (jambeGT != null) jambeGT.SetParent(bassinT, true);
+                if (jambeDT != null) jambeDT.SetParent(bassinT, true);
+            }
+
             corpsGO.AddComponent<CorpsJoueur>();
 
             // Caméra 3e personne : légèrement en retrait et en hauteur, cadrée sur le
