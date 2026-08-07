@@ -38,6 +38,10 @@ namespace WuroGalle.Editor
         // Instancier() crée un placeholder "MANQUANT_" visible mais inoffensif.
         const string PathAcacia = "Assets/Models/Paysage/Acacia.glb";
 
+        // Canari (jarre à eau, blender/mobilier/canari.py) : manquait jusqu'ici alors
+        // qu'il porte l'interaction "boire" (voir AjouterInteractionsSceneActive).
+        const string PathCanari = "Assets/Models/Mobilier/Canari.glb";
+
         // Sons libres de droits déjà présents dans Assets/Audio/ (voir note-ethique.md
         // pour les critères de sélection des sources).
         const string AudioFeu = "Assets/Audio/637523__kyles__fire-small-campfire-crackling-short-air-tone.flac";
@@ -310,6 +314,162 @@ namespace WuroGalle.Editor
             return racine;
         }
 
+        /// <summary>Récupère un composant s'il existe déjà sur le GameObject, sinon l'ajoute — évite les doublons si on relance le menu (même logique que ObtenirOuAjouterSettings pour le post-processing).</summary>
+        static T ObtenirOuAjouter<T>(GameObject go) where T : Component
+        {
+            var composant = go.GetComponent<T>();
+            return composant != null ? composant : go.AddComponent<T>();
+        }
+
+        /// <summary>
+        /// Attache les scripts d'interaction "active" (touche à presser, par opposition à
+        /// PNJDialogue qui est passif) aux objets déjà présents dans la scène ACTUELLEMENT
+        /// OUVERTE : boire (Canari), piler (Mortier+Pilon), s'asseoir (Natte), caresser
+        /// (Troupeau), et pour la Concession spécifiquement prier (Natte_Priere) + examiner
+        /// (Dudal, Grenier — légendes culturelles courtes). Attiser le feu est réservé au
+        /// Campement (seule scène avec un FeuDeCamp actif).
+        ///
+        /// Non destructif : réutilise les composants déjà en place si le menu est relancé,
+        /// ne recrée rien qui existe déjà. Ne fait rien pour un objet absent de la scène
+        /// (log un avertissement) plutôt que de planter — utile si BuildCampement/
+        /// BuildConcession n'a pas encore été relancé avec le Canari.
+        /// </summary>
+        [MenuItem("Wuro&Galle/Ajouter les interactions (canari, mortier, dudal, troupeau, feu, nattes) à la scène active")]
+        public static void AjouterInteractionsSceneActive()
+        {
+            Scene scene = EditorSceneManager.GetActiveScene();
+
+            var joueur = TrouverDansScene(scene, "Joueur");
+            if (joueur != null && !joueur.CompareTag("Player"))
+                joueur.tag = "Player";
+
+            if (scene.name == "Campement")
+            {
+                AjouterActionBoire(scene, "Canari_Foyer");
+                AjouterActionPiler(scene, "Mortier_Foyer", "Pilon_Foyer");
+                AjouterActionSasseoir(scene, "Natte_Foyer");
+                AjouterActionCaresserTroupeau(scene);
+                AjouterActionAttiserFeu(scene);
+                Debug.Log("[SceneBuilder] Interactions ajoutées à Campement (boire, piler, s'asseoir, caresser, attiser le feu).");
+            }
+            else if (scene.name == "Concession")
+            {
+                AjouterActionBoire(scene, "Canari_Entree");
+                AjouterActionPiler(scene, "Mortier_Cases", "Pilon_Cases");
+                AjouterActionSasseoir(scene, "Natte_Cases");
+                AjouterActionPrier(scene, "Natte_Priere");
+                AjouterActionExaminer(scene, "Dudal",
+                    "Le dudal : espace de prière et de rassemblement masculin, proche de l'entrée — " +
+                    "zone publique, lieu de sociabilité et de médiation avec l'extérieur. (Le sens exact " +
+                    "du terme fait l'objet d'un écart signalé dans le glossaire du projet.)");
+                AjouterActionExaminer(scene, "Grenier",
+                    "Le grenier à mil : le stockage des récoltes, en position centrale et surveillée " +
+                    "plutôt qu'en périphérie — il concentre une bonne part de la sécurité économique du foyer.");
+                Debug.Log("[SceneBuilder] Interactions ajoutées à Concession (boire, piler, s'asseoir, prier, examiner).");
+            }
+            else
+            {
+                Debug.LogWarning($"[SceneBuilder] Scène active '{scene.name}' non reconnue " +
+                    "(attendu \"Campement\" ou \"Concession\") — rien n'a été ajouté.");
+                return;
+            }
+
+            EditorSceneManager.SaveScene(scene);
+        }
+
+        static void AjouterActionBoire(Scene scene, string nomCanari)
+        {
+            var go = TrouverDansScene(scene, nomCanari);
+            if (go == null)
+            {
+                Debug.LogWarning($"[SceneBuilder] '{nomCanari}' introuvable — relance BuildCampement/BuildConcession (avec Canari) avant ce menu.");
+                return;
+            }
+            ObtenirOuAjouter<ActionBoire>(go);
+        }
+
+        static void AjouterActionPiler(Scene scene, string nomMortier, string nomPilon)
+        {
+            var mortierGO = TrouverDansScene(scene, nomMortier);
+            var pilonGO = TrouverDansScene(scene, nomPilon);
+            if (mortierGO == null || pilonGO == null)
+            {
+                Debug.LogWarning($"[SceneBuilder] '{nomMortier}' ou '{nomPilon}' introuvable — interaction 'piler' non ajoutée.");
+                return;
+            }
+            var action = ObtenirOuAjouter<ActionPiler>(mortierGO);
+            action.pilon = pilonGO.transform;
+        }
+
+        static void AjouterActionSasseoir(Scene scene, string nomNatte)
+        {
+            var go = TrouverDansScene(scene, nomNatte);
+            if (go == null)
+            {
+                Debug.LogWarning($"[SceneBuilder] '{nomNatte}' introuvable — interaction 's'asseoir' non ajoutée.");
+                return;
+            }
+            ObtenirOuAjouter<ActionSasseoir>(go);
+        }
+
+        static void AjouterActionPrier(Scene scene, string nomNattePriere)
+        {
+            var go = TrouverDansScene(scene, nomNattePriere);
+            if (go == null)
+            {
+                Debug.LogWarning($"[SceneBuilder] '{nomNattePriere}' introuvable — interaction 'prier' non ajoutée.");
+                return;
+            }
+            ObtenirOuAjouter<ActionPrier>(go);
+        }
+
+        /// <summary>Ajoute l'interaction 'caresser' à CHAQUE tête de bétail sous le parent "Troupeau" (voir CreerTroupeauDansEnclos) — le nombre de têtes n'est pas fixe.</summary>
+        static void AjouterActionCaresserTroupeau(Scene scene)
+        {
+            var parent = TrouverDansScene(scene, "Troupeau");
+            if (parent == null)
+            {
+                Debug.LogWarning("[SceneBuilder] 'Troupeau' introuvable — interaction 'caresser' non ajoutée.");
+                return;
+            }
+            foreach (Transform tete in parent.transform)
+                ObtenirOuAjouter<ActionCaresserTroupeau>(tete.gameObject);
+        }
+
+        static void AjouterActionExaminer(Scene scene, string nomObjet, string legende)
+        {
+            var go = TrouverDansScene(scene, nomObjet);
+            if (go == null)
+            {
+                Debug.LogWarning($"[SceneBuilder] '{nomObjet}' introuvable — interaction 'examiner' non ajoutée.");
+                return;
+            }
+            var action = ObtenirOuAjouter<ActionExaminer>(go);
+            action.legende = legende;
+        }
+
+        static void AjouterActionAttiserFeu(Scene scene)
+        {
+            var feuGO = TrouverDansScene(scene, "FeuDeCamp");
+            if (feuGO == null)
+            {
+                Debug.LogWarning("[SceneBuilder] 'FeuDeCamp' introuvable — interaction 'attiser le feu' non ajoutée.");
+                return;
+            }
+
+            var lumiereGO = TrouverEnfant(feuGO.transform, "Lumiere_Feu");
+            var flammesGO = TrouverEnfant(feuGO.transform, "Particules_Flammes");
+            var braisesGO = TrouverEnfant(feuGO.transform, "Particules_Braises");
+
+            var action = ObtenirOuAjouter<ActionAttiserFeu>(feuGO);
+            action.scintillement = lumiereGO != null ? lumiereGO.GetComponent<FeuDeCampScintillement>() : null;
+
+            var particules = new List<ParticleSystem>();
+            if (flammesGO != null) particules.Add(flammesGO.GetComponent<ParticleSystem>());
+            if (braisesGO != null) particules.Add(braisesGO.GetComponent<ParticleSystem>());
+            action.particulesABooster = particules.ToArray();
+        }
+
         /// <summary>
         /// Ajoute à la scène ACTUELLEMENT OUVERTE : montagnes lointaines + brume
         /// atmosphérique (profondeur d'horizon), végétation désertique éparse (rien
@@ -340,10 +500,95 @@ namespace WuroGalle.Editor
                 : new Rect(-6f, -4f, 12f, 11f);   // englobe dudal, cases, grenier, mobilier
             CreerVegetationEparse(zoneEvitee);
 
+            var ancienneMeteo = TrouverDansScene(scene, "Meteo");
+            if (ancienneMeteo != null) Object.DestroyImmediate(ancienneMeteo);
+            CreerMeteo();
+
             AdoucirTexturesParticulesFeu(scene);
 
             EditorSceneManager.SaveScene(scene);
             Debug.Log($"[SceneBuilder] Décor ajouté à la scène {scene.name}.");
+        }
+
+        /// <summary>
+        /// Habillage "climat" du paysage sahélien : poussière portée par le vent
+        /// (cohérente avec Audio_Vent, déjà en boucle sur les deux scènes) et quelques
+        /// nuages fins qui dérivent lentement (NuagesDerive.cs) — un ciel figé
+        /// détonnait avec l'ambiance sonore de vent. Ni cycle jour/nuit ni pluie :
+        /// hors budget de temps pour cette passe, laissé pour une itération suivante.
+        /// </summary>
+        static void CreerMeteo()
+        {
+            var parent = new GameObject("Meteo");
+
+            CreerPoussiereVent(parent.transform);
+            CreerNuages(parent.transform);
+        }
+
+        /// <summary>Fine brume de poussière en suspension, portée par le vent (World space, grande zone, très discrète — climat sahélien, pas une tempête de sable).</summary>
+        static void CreerPoussiereVent(Transform parent)
+        {
+            var go = new GameObject("Vent_Poussiere");
+            go.transform.SetParent(parent);
+            go.transform.position = new Vector3(0f, 0.6f, 0f);
+
+            var ps = go.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.loop = true;
+            main.startLifetime = 18f;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.15f, 0.4f);
+            main.startColor = new Color(0.75f, 0.68f, 0.5f, 0.05f); // très discret, s'additionne sur toute la zone
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 150;
+
+            var emission = ps.emission;
+            emission.rateOverTime = 8f;
+
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(60f, 2f, 60f); // couvre toute la zone jouable + les abords
+
+            var velocityOverLifetime = ps.velocityOverLifetime;
+            velocityOverLifetime.enabled = true;
+            velocityOverLifetime.x = new ParticleSystem.MinMaxCurve(0.3f, 0.6f); // même direction générale que Audio_Vent
+            velocityOverLifetime.y = new ParticleSystem.MinMaxCurve(0f, 0.05f);
+            velocityOverLifetime.z = new ParticleSystem.MinMaxCurve(0.05f, 0.2f);
+
+            go.GetComponent<ParticleSystemRenderer>().material =
+                CreerMateriauParticules("Legacy Shaders/Particles/Alpha Blended");
+        }
+
+        /// <summary>Quelques nuages fins (quads texturés, dégradé radial doux) haut dans le ciel, dérivant lentement (NuagesDerive.cs).</summary>
+        static void CreerNuages(Transform parent)
+        {
+            var texture = CreerTextureRadialeDouce(64);
+            var mat = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended"));
+            mat.mainTexture = texture;
+            mat.color = new Color(1f, 1f, 1f, 0.5f);
+
+            var rng = new System.Random(21);
+            int nombre = 6;
+            for (int i = 0; i < nombre; i++)
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                go.name = $"Nuage_{i}";
+                Object.DestroyImmediate(go.GetComponent<Collider>());
+                go.transform.SetParent(parent);
+
+                float x = (float)(rng.NextDouble() * 100 - 50);
+                float z = (float)(rng.NextDouble() * 100 - 50);
+                go.transform.position = new Vector3(x, 38f + (float)rng.NextDouble() * 6f, z);
+                go.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // face vers le sol
+                float taille = 12f + (float)rng.NextDouble() * 10f;
+                go.transform.localScale = new Vector3(taille * (1.4f + (float)rng.NextDouble() * 0.6f), taille, 1f);
+
+                go.GetComponent<Renderer>().sharedMaterial = mat;
+
+                var derive = go.AddComponent<NuagesDerive>();
+                derive.vitesse = 0.3f + (float)rng.NextDouble() * 0.3f;
+                derive.limite = 70f;
+            }
         }
 
         /// <summary>
@@ -430,7 +675,7 @@ namespace WuroGalle.Editor
                 ? new Rect(-13f, -4f, 22f, 12f)
                 : new Rect(-14f, -5f, 20f, 13f);
 
-            foreach (string nomAncien in new[] { "Montagnes_Lointaines", "Vegetation_Eparse", "Terrain_Environnement" })
+            foreach (string nomAncien in new[] { "Montagnes_Lointaines", "Vegetation_Eparse", "Terrain_Environnement", "Meteo" })
             {
                 var ancien = TrouverDansScene(scene, nomAncien);
                 if (ancien != null) Object.DestroyImmediate(ancien);
@@ -476,6 +721,14 @@ namespace WuroGalle.Editor
             RenderSettings.fogColor = new Color(0.75f, 0.78f, 0.82f);
             RenderSettings.fogStartDistance = 25f;
             RenderSettings.fogEndDistance = 90f;
+
+            // Végétation éparse : orpheline depuis le passage au Terrain (supprimée
+            // ci-dessus avec Montagnes_Lointaines/Vegetation_Eparse mais jamais
+            // recréée jusqu'ici — écart corrigé ici) + habillage climat/météo
+            // (poussière portée par le vent, nuages qui dérivent — voir CreerMeteo).
+            // CreerVegetationEparse crée elle-même son parent "Vegetation_Eparse".
+            CreerVegetationEparse(zoneEvitee);
+            CreerMeteo();
 
             AdoucirTexturesParticulesFeu(scene);
 
@@ -740,10 +993,29 @@ namespace WuroGalle.Editor
             RenderSettings.fogEndDistance = 90f;
         }
 
+        /// <summary>Un arbre déjà placé (pour vérifier l'espacement avec le suivant) — voir CreerVegetationEparse.</summary>
+        private readonly struct ArbrePlace
+        {
+            public readonly Vector2 Position;
+            public readonly float RayonHouppier;
+            public ArbrePlace(Vector2 position, float rayonHouppier) { Position = position; RayonHouppier = rayonHouppier; }
+        }
+
         /// <summary>
-        /// Buissons épars (petits cônes bas et sombres) sur le terrain, en évitant la
-        /// zone occupée par les structures (rect en coordonnées X/Z monde). Rien
-        /// n'existait côté végétation jusqu'ici.
+        /// Acacias épars (silhouette réelle si le module Blender est importé, sinon
+        /// cônes procéduraux de secours) sur le terrain, en évitant la zone occupée
+        /// par les structures (rect en coordonnées X/Z monde).
+        ///
+        /// CORRIGÉ (bug constaté sur capture d'écran Play mode) : le houppier de
+        /// l'acacia parasol mesure réellement ~9,5 m de diamètre à l'échelle 1 (vérifié
+        /// via les bounds des instances générées) — pas un petit buisson. La première
+        /// version ne testait que le POINT d'ancrage contre zoneEvitee (pas le rayon du
+        /// houppier) et plaçait 45 arbres sur une zone à peine plus grande que la zone
+        /// évitée elle-même, sans espacement minimum entre eux : résultat, un mur
+        /// d'arbres continu qui recouvrait le foyer et les suudu/cases. Corrigé en
+        /// tenant compte du rayon réel du houppier dans la marge ET dans l'espacement
+        /// entre arbres, en élargissant la zone de tirage, et en réduisant la densité
+        /// à un niveau réellement "épars".
         /// </summary>
         static void CreerVegetationEparse(Rect zoneEvitee)
         {
@@ -765,29 +1037,48 @@ namespace WuroGalle.Editor
                     "Exporte vegetation_sahelienne.py en GLB, importe-le, puis relance pour la vraie silhouette d'acacia.");
             }
 
-            int nombre = 45;
-            int placees = 0;
+            const float rayonHouppierBase = 4.8f; // à l'échelle 1 (mesuré ~4.75 m sur les instances générées)
+            const float margeAuDelaDuHouppier = 1.5f; // au-delà du houppier lui-même, pour ne pas juste effleurer la zone évitée
+            const float espacementSupplementaire = 1f; // entre deux houppiers voisins
+
+            int nombre = 14; // vraiment "épars" — la densité précédente (45) noyait tout sous les houppiers
             int tentatives = 0;
-            while (placees < nombre && tentatives < nombre * 6)
+            var placees = new List<ArbrePlace>();
+
+            while (placees.Count < nombre && tentatives < nombre * 40)
             {
                 tentatives++;
-                float x = (float)(rng.NextDouble() * 26 - 13);
-                float z = (float)(rng.NextDouble() * 24 - 12);
-                if (zoneEvitee.Contains(new Vector2(x, z))) continue;
+                float x = (float)(rng.NextDouble() * 80 - 40); // zone de tirage bien plus large que la zone évitée
+                float z = (float)(rng.NextDouble() * 76 - 38);
+                float echelle = 0.8f + (float)rng.NextDouble() * 0.5f;
+                float rayonHouppier = rayonHouppierBase * echelle;
+
+                if (DistanceHorsRect(x, z, zoneEvitee) < rayonHouppier + margeAuDelaDuHouppier) continue;
+
+                bool tropProche = false;
+                foreach (var autre in placees)
+                {
+                    if (Vector2.Distance(autre.Position, new Vector2(x, z)) < rayonHouppier + autre.RayonHouppier + espacementSupplementaire)
+                    { tropProche = true; break; }
+                }
+                if (tropProche) continue;
+
+                placees.Add(new ArbrePlace(new Vector2(x, z), rayonHouppier));
+                int index = placees.Count - 1;
 
                 if (assetAcacia != null)
                 {
                     var acacia = (GameObject)PrefabUtility.InstantiatePrefab(assetAcacia, parent.transform);
-                    acacia.name = $"Acacia_{placees}";
+                    acacia.name = $"Acacia_{index}";
                     acacia.transform.position = new Vector3(x, 0f, z);
                     acacia.transform.rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
                     // Un seul module réutilisé : la variation de taille vient de l'échelle,
                     // pas d'une nouvelle géométrie (aucun coût triangle supplémentaire).
-                    acacia.transform.localScale = Vector3.one * (0.8f + (float)rng.NextDouble() * 0.5f);
+                    acacia.transform.localScale = Vector3.one * echelle;
                 }
                 else
                 {
-                    var buisson = new GameObject($"Buisson_{placees}");
+                    var buisson = new GameObject($"Buisson_{index}");
                     buisson.transform.SetParent(parent.transform);
                     buisson.transform.position = new Vector3(x, 0f, z);
                     buisson.transform.rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
@@ -800,9 +1091,55 @@ namespace WuroGalle.Editor
                     var mr = buisson.AddComponent<MeshRenderer>();
                     mr.sharedMaterial = matBuissonSecours;
                 }
+            }
 
+            if (placees.Count < nombre)
+                Debug.LogWarning($"[SceneBuilder] Végétation : seulement {placees.Count}/{nombre} arbres placés sans chevauchement.");
+        }
+
+        /// <summary>
+        /// Disperse plusieurs têtes de bétail (mélange robe blanche/rousse, réutilisant
+        /// les deux modules existants — pas de nouvelle géométrie) à l'intérieur du
+        /// hoggo, avec un espacement minimum pour éviter les chevauchements visibles.
+        /// Seed fixe (reproductible d'une régénération à l'autre, même logique que
+        /// CreerMontagnesLointaines/CreerVegetationEparse).
+        /// </summary>
+        static void CreerTroupeauDansEnclos(Vector3 centreEnclos, float rayonEnclos, int nombre)
+        {
+            var parent = new GameObject("Troupeau");
+            var rng = new System.Random(11);
+            const float distanceMin = 1.1f;
+            var positions = new List<Vector2>();
+
+            int placees = 0;
+            int tentatives = 0;
+            while (placees < nombre && tentatives < nombre * 20)
+            {
+                tentatives++;
+                float angle = (float)(rng.NextDouble() * Mathf.PI * 2);
+                float rayon = Mathf.Sqrt((float)rng.NextDouble()) * rayonEnclos; // distribution uniforme dans le disque
+                var candidate = new Vector2(Mathf.Cos(angle) * rayon, Mathf.Sin(angle) * rayon);
+
+                bool tropProche = false;
+                foreach (var p in positions)
+                {
+                    if (Vector2.Distance(p, candidate) < distanceMin) { tropProche = true; break; }
+                }
+                if (tropProche) continue;
+
+                positions.Add(candidate);
+                Vector3 position = centreEnclos + new Vector3(candidate.x, 0f, candidate.y);
+                Quaternion rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
+                string cheminModele = rng.Next(2) == 0 ? PathTroupeauBlanc : PathTroupeauRoux;
+                string nom = $"Troupeau_{(cheminModele == PathTroupeauBlanc ? "blanc" : "roux")}_{placees}";
+
+                var instance = Instancier(cheminModele, position, rotation, nom);
+                instance.transform.SetParent(parent.transform);
                 placees++;
             }
+
+            if (placees < nombre)
+                Debug.LogWarning($"[SceneBuilder] Troupeau : seulement {placees}/{nombre} têtes placées sans chevauchement (enclos trop petit pour la densité demandée).");
         }
 
         /// <summary>
@@ -864,10 +1201,10 @@ namespace WuroGalle.Editor
             // Le hoggo (enclos, 14 piquets + 2 anneaux) et la mare sont déjà inclus dans
             // Paysage.glb (bakés par enclos_paysage.py) : centrés à ~(-10.5, 0, 0), rayon
             // ~4 m. Pas d'Instancier(PathEnclos, ...) ici — ça créerait un second enclos
-            // en doublon, ailleurs, comme observé précédemment. Le troupeau est placé
-            // à l'intérieur du vrai enclos, pas à côté d'un doublon.
-            Instancier(PathTroupeauBlanc, new Vector3(-12f, 0f, 1f), Quaternion.Euler(0, 20, 0), "Troupeau_blanc");
-            Instancier(PathTroupeauRoux, new Vector3(-9f, 0f, -1f), Quaternion.Euler(0, -20, 0), "Troupeau_roux");
+            // en doublon, ailleurs, comme observé précédemment. Le troupeau (plusieurs
+            // têtes, pas juste une bête de chaque robe : un troupeau se doit d'en avoir
+            // plusieurs) est placé à l'intérieur du vrai enclos, pas à côté d'un doublon.
+            CreerTroupeauDansEnclos(new Vector3(-10.5f, 0f, 0f), 3.3f, nombre: 7);
 
             // Calebasse près de l'enclos : évoque la traite du matin (zone de traite
             // documentée comme proche du hoggo, pas modélisée comme espace à part).
@@ -880,6 +1217,10 @@ namespace WuroGalle.Editor
             Instancier(PathMortier, new Vector3(-0.8f, 0f, 1.3f), Quaternion.identity, "Mortier_Foyer");
             Instancier(PathPilon, new Vector3(-0.8f, 0f, 1.55f), Quaternion.identity, "Pilon_Foyer");
             Instancier(PathCalebasse, new Vector3(1.1f, 0f, 1f), Quaternion.identity, "Calebasse_Foyer");
+
+            // Canari à l'ombre de la Suudu_1 (côté opposé au Mortier/Pilon pour ne
+            // rien chevaucher) : porte l'interaction "boire" (voir AjouterInteractionsSceneActive).
+            Instancier(PathCanari, new Vector3(-1.7f, 0f, 0.7f), Quaternion.identity, "Canari_Foyer");
 
             // Feu de camp central, équidistant des deux suudu : Particle System classique
             // (flammes, fumée, braises) + lumière ponctuelle scintillante — choix fait
@@ -932,6 +1273,11 @@ namespace WuroGalle.Editor
             // autres cases de la concession, pas au Wuro. Position décalée du dudal ET
             // des cases privées, sur le côté de l'axe d'entrée.
             Instancier(PathGalle1, new Vector3(3f, 0f, -1f), Quaternion.Euler(0, -160, 0), "Case_Hote");
+
+            // Canari près de l'entrée, à l'écart du dudal et de la case d'hôte : geste
+            // d'hospitalité (offrir de l'eau à l'arrivant) plutôt qu'un simple point d'eau
+            // domestique — porte l'interaction "boire" (voir AjouterInteractionsSceneActive).
+            Instancier(PathCanari, new Vector3(-2.2f, 0f, -3f), Quaternion.identity, "Canari_Entree");
 
             // Cases (rayons réels 1.6-1.9 m, écartées de 8 m en X : aucun risque de
             // chevauchement), en zone privée, plus profondément dans la concession.
@@ -997,20 +1343,24 @@ namespace WuroGalle.Editor
         public static void ExecuterPipelineComplet()
         {
             BuildCampement();
+            AjouterTerrainSceneActive();
             AjouterAudioSceneActive();
             AjouterPostProcessingSceneActive();
             ActiverOmbresSoleilSceneActive();
             AjouterPNJSceneActive();
+            AjouterInteractionsSceneActive();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
-            Debug.Log("[SceneBuilder] Campement : reconstruite + audio + post-processing + ombres + PNJ.");
+            Debug.Log("[SceneBuilder] Campement : reconstruite + terrain/météo + audio + post-processing + ombres + PNJ + interactions.");
 
             BuildConcession();
+            AjouterTerrainSceneActive();
             AjouterAudioSceneActive();
             AjouterPostProcessingSceneActive();
             ActiverOmbresSoleilSceneActive();
             AjouterPNJSceneActive();
+            AjouterInteractionsSceneActive();
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
-            Debug.Log("[SceneBuilder] Concession : reconstruite + audio + post-processing + ombres + PNJ.");
+            Debug.Log("[SceneBuilder] Concession : reconstruite + terrain/météo + audio + post-processing + ombres + PNJ + interactions.");
 
             Debug.Log("[SceneBuilder] Pipeline complet terminé.");
 
@@ -1297,6 +1647,34 @@ namespace WuroGalle.Editor
             // sous y=-20 (collision manquante, bord non couvert), il est replacé au
             // point de départ au lieu de tomber indéfiniment.
             joueur.AddComponent<SecuriteChute>();
+
+            // Corps du joueur (Assets/Scripts/CorpsJoueur.cs) : silhouette placeholder,
+            // invisible en vue FPS normale (Awake() désactive gameObject), affichée
+            // seulement pendant les séquences 3e personne (prier/s'asseoir — voir
+            // CameraTierceUtils). SUR UN ENFANT DÉDIÉ ("Corps"), PAS sur le Joueur
+            // lui-même : CorpsJoueur.Awake() fait gameObject.SetActive(false), et
+            // l'appliquer directement sur la racine Joueur désactiverait aussi
+            // CameraJoueur/FirstPersonController/CameraTierce (tous ses enfants) —
+            // bug réel observé (plus de caméra active du tout dès le premier frame,
+            // "no audio listener" en boucle en Play mode).
+            var corpsGO = new GameObject("Corps");
+            corpsGO.transform.SetParent(joueur.transform);
+            corpsGO.transform.localPosition = Vector3.zero;
+            corpsGO.transform.localRotation = Quaternion.identity;
+            corpsGO.AddComponent<CorpsJoueur>();
+
+            // Caméra 3e personne : légèrement en retrait et en hauteur, cadrée sur le
+            // corps. Désactivée par défaut (CameraTierceUtils l'active pendant la
+            // séquence). AudioListener présent mais désactivé aussi : un seul listener
+            // actif à la fois (Unity n'aime pas en avoir plusieurs simultanément).
+            var camTierceGO = new GameObject("CameraTierce");
+            camTierceGO.transform.SetParent(joueur.transform);
+            camTierceGO.transform.localPosition = new Vector3(0f, 1.7f, -2.4f);
+            camTierceGO.transform.localRotation = Quaternion.Euler(12f, 0f, 0f);
+            var camTierce = camTierceGO.AddComponent<Camera>();
+            camTierce.enabled = false;
+            var ecouteurTierce = camTierceGO.AddComponent<AudioListener>();
+            ecouteurTierce.enabled = false;
 
             return joueur;
         }
