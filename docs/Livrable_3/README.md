@@ -28,3 +28,7 @@ Fait :
 
 - Les deux scènes Unity, jouables et testables au clavier/souris (`Assets/Scenes/Campement.unity`, `Concession.unity`).
 - Une vidéo de démonstration capturée depuis l'écran (Game view), pas depuis un casque — à enregistrer et déposer ici en `.mp4`.
+
+---
+
+**Note (mise à jour ultérieure, voir `Assets/Editor/SceneBuilder.cs`) :** le rapport réflexif (Livrable 4) documente l'abandon du Terrain procédural pour un bug de ligne d'horizon nette. Ce bug a depuis été corrigé (bruit appliqué aux hauteurs jusqu'au bord réel du Terrain, plus de plateau parfaitement plat) et un vrai Terrain avec relief, brouillard et végétation éparse est de nouveau en place (`AjouterTerrainSceneActive`, appelé par `ExecuterPipelineComplet`).
