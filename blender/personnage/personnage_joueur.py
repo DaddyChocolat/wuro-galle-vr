@@ -87,15 +87,31 @@ def creer_tete(position_monde, rayon=0.13):
     return tete
 
 
-def creer_materiau_neutre():
-    """Même teinte neutre/sombre que le placeholder PNJ (SceneBuilder.cs) et
-    l'ancien CorpsJoueur.cs — cohérence visuelle entre joueur et PNJ,
-    silhouette sans traits (note éthique)."""
-    mat = bpy.data.materials.new(name="Personnage_Silhouette")
+def creer_materiau_peau():
+    """
+    Teinte de peau chaude et naturelle plutôt que le gris neutre uniforme
+    utilisé jusqu'ici — le personnage représente quelqu'un du Diamaré
+    (Sahel camerounais), un silhouette grise ne le lisait pas comme une
+    personne du tout. RESTE volontairement sans visage ni traits
+    individualisés (note éthique, *semteende*) : un aplat de couleur stylisé,
+    pas un shader de peau réaliste ni une tentative de représenter "la"
+    couleur de peau africaine — juste un ton plausible et respectueux plutôt
+    qu'un gris qui n'évoquait rien de spécifique. Différent du gris du
+    placeholder PNJ (SceneBuilder.CreerPNJPlaceholder) : écart assumé pour
+    l'instant, les PNJ restent des silhouettes plus abstraites/en retrait,
+    le joueur est ce qu'on regarde le plus souvent (bras, corps en 3e
+    personne) donc mérite cette touche en premier.
+    """
+    mat = bpy.data.materials.new(name="Personnage_Peau")
     mat.use_nodes = True
     principled = mat.node_tree.nodes["Principled BSDF"]
-    principled.inputs["Base Color"].default_value = (0.16, 0.13, 0.11, 1.0)
-    principled.inputs["Roughness"].default_value = 0.75
+    # Assombri/resaturé par rapport à un premier essai (0.36,0.22,0.14) : sous
+    # le soleil de zénith + color grading chaud de la scène (voir
+    # SceneBuilder.ConfigurerColorGrading), cette première teinte délavait
+    # presque au même ton que les murs en banco des cases — le personnage se
+    # fondait dans le décor au lieu de s'en détacher comme une personne.
+    principled.inputs["Base Color"].default_value = (0.24, 0.13, 0.08, 1.0)
+    principled.inputs["Roughness"].default_value = 0.55
     return mat
 
 
@@ -169,7 +185,7 @@ if __name__ == "__main__":
         bpy.context.view_layer.objects.active = obj
         bpy.ops.object.shade_smooth()
 
-    mat = creer_materiau_neutre()
+    mat = creer_materiau_peau()
     for obj in parties:
         obj.data.materials.clear()
         obj.data.materials.append(mat)
