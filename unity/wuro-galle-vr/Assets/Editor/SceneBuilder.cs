@@ -31,6 +31,7 @@ namespace WuroGalle.Editor
         // multiplication shader plutôt qu'une seconde texture peinte).
         const string PathTroupeauBlanc = "Assets/Models/Troupeau/ZebuRealiste_blanc.glb";
         const string PathTroupeauRoux = "Assets/Models/Troupeau/ZebuRealiste_roux.glb";
+        const string PathTroupeauNoir = "Assets/Models/Troupeau/ZebuRealiste_noir.glb";
         const string PathDudal = "Assets/Models/Galle/dudal.glb";
         const string PathGrenier = "Assets/Models/Galle/grenier.glb";
         const string PathCalebasse = "Assets/Models/Mobilier/Calebasse.glb";
@@ -67,6 +68,7 @@ namespace WuroGalle.Editor
         const string AudioWind = "Assets/Audio/156414__felixblume__wind-blowing-into-some-cactus-spine-on-the-top-of-the-mountain-in-the-desert-of-atacama-chile.wav";
         const string AudioAppelPriere = "Assets/Audio/329857__martineerok__call-for-prayer-ramallah.wav";
         const string AudioMouton = "Assets/Audio/23725__jppi_stu__sw_fair_sheep_1.flac";
+        const string AudioCaresseTroupeau = "Assets/Audio/zebu_caresse.wav";
 
         /// <summary>
         /// Ajoute l'audio 3D à la scène ACTUELLEMENT OUVERTE, sans la reconstruire —
@@ -82,16 +84,16 @@ namespace WuroGalle.Editor
             if (scene.name == "Campement")
             {
                 RemplacerSourceAudio(scene, "Audio_Feu", AudioFeu, new Vector3(0f, 0.3f, 0f), 0.7f, 6f);
-                RemplacerSourceAudio(scene, "Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.6f, 12f);
-                RemplacerSourceAudio(scene, "Audio_Paturage", AudioGrazingCows, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Clochettes", AudioCowBells, new Vector3(10.5f, 0.5f, 0f), 0.6f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Paturage", AudioGrazingCows, new Vector3(10.5f, 0.5f, 0f), 0.5f, 12f);
                 RemplacerSourceAudio(scene, "Audio_Vent", AudioWind, new Vector3(0f, 2f, 4f), 0.35f, 30f, spatialBlend: 0.2f);
                 Debug.Log("[SceneBuilder] Audio ajouté à la scène Campement.");
             }
             else if (scene.name == "Concession")
             {
                 RemplacerSourceAudio(scene, "Audio_AppelPriere", AudioAppelPriere, new Vector3(5.5f, 1.5f, -2.5f), 0.5f, 15f);
-                RemplacerSourceAudio(scene, "Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
-                RemplacerSourceAudio(scene, "Audio_Mouton", AudioMouton, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Clochettes", AudioCowBells, new Vector3(10.5f, 0.5f, 0f), 0.5f, 12f);
+                RemplacerSourceAudio(scene, "Audio_Mouton", AudioMouton, new Vector3(10.5f, 0.5f, 0f), 0.5f, 12f);
                 RemplacerSourceAudio(scene, "Audio_Vent", AudioWind, new Vector3(0f, 2f, -4f), 0.35f, 30f, spatialBlend: 0.2f);
                 Debug.Log("[SceneBuilder] Audio ajouté à la scène Concession.");
             }
@@ -439,16 +441,21 @@ namespace WuroGalle.Editor
         }
 
         /// <summary>Ajoute l'interaction 'caresser' à CHAQUE tête de bétail sous le parent "Troupeau" (voir CreerTroupeauDansEnclos) — le nombre de têtes n'est pas fixe.</summary>
-        static void AjouterActionCaresserTroupeau(Scene scene)
+        internal static void AjouterActionCaresserTroupeau(Scene scene)
         {
             var parent = TrouverDansScene(scene, "Troupeau");
+            if (parent == null) parent = TrouverDansScene(scene, "Troupeau (1)"); // renommage Unity constaté sur Concession (collision de nom)
             if (parent == null)
             {
                 Debug.LogWarning("[SceneBuilder] 'Troupeau' introuvable — interaction 'caresser' non ajoutée.");
                 return;
             }
+            var clipCaresse = AssetDatabase.LoadAssetAtPath<AudioClip>(AudioCaresseTroupeau);
             foreach (Transform tete in parent.transform)
-                ObtenirOuAjouter<ActionCaresserTroupeau>(tete.gameObject);
+            {
+                var action = ObtenirOuAjouter<ActionCaresserTroupeau>(tete.gameObject);
+                action.son = clipCaresse;
+            }
         }
 
         static void AjouterActionExaminer(Scene scene, string nomObjet, string legende)
@@ -1148,8 +1155,11 @@ namespace WuroGalle.Editor
                 positions.Add(candidate);
                 Vector3 position = centreEnclos + new Vector3(candidate.x, 0f, candidate.y);
                 Quaternion rotation = Quaternion.Euler(0, (float)rng.NextDouble() * 360f, 0);
-                string cheminModele = rng.Next(2) == 0 ? PathTroupeauBlanc : PathTroupeauRoux;
-                string nom = $"Troupeau_{(cheminModele == PathTroupeauBlanc ? "blanc" : "roux")}_{placees}";
+                string[] robes = { PathTroupeauBlanc, PathTroupeauRoux, PathTroupeauNoir };
+                string[] nomsRobes = { "blanc", "roux", "noir" };
+                int indexRobe = rng.Next(robes.Length);
+                string cheminModele = robes[indexRobe];
+                string nom = $"Troupeau_{nomsRobes[indexRobe]}_{placees}";
 
                 var instance = Instancier(cheminModele, position, rotation, nom);
                 instance.transform.SetParent(parent.transform);
@@ -1160,24 +1170,67 @@ namespace WuroGalle.Editor
                 Debug.LogWarning($"[SceneBuilder] Troupeau : seulement {placees}/{nombre} têtes placées sans chevauchement (enclos trop petit pour la densité demandée).");
         }
 
+        const string PathTextureFlamme = "Assets/Textures/Particules/flamme.png";
+        const string PathTextureFumee = "Assets/Textures/Particules/fumee.png";
+        const string PathTextureBraise = "Assets/Textures/Particules/braise.png";
+
         /// <summary>
         /// Remplace le rendu à bords durs des particules du feu (aucune texture assignée
-        /// jusqu'ici) par une texture radiale douce générée en code, appliquée aux
-        /// matériaux des flammes et des braises (la fumée reste diffuse, déjà correcte).
+        /// jusqu'ici, puis un dégradé radial généré en code — un simple cercle flou,
+        /// pas vraiment une "flamme") par de vraies textures de flamme/fumée/braise :
+        /// Kenney "Particle Pack" (80+ sprites), licence CC0, OpenGameArt.org
+        /// (https://opengameart.org/content/particle-pack-80-sprites) — voir
+        /// docs/Livrable_1/corpus-documentaire.md. flamme.png a une vraie silhouette de
+        /// flamme (langue de feu), pas un blob radial symétrique.
         /// </summary>
-        static void AdoucirTexturesParticulesFeu(Scene scene)
+        internal static void AdoucirTexturesParticulesFeu(Scene scene)
         {
-            var texture = CreerTextureRadialeDouce(64);
+            AssignerTexture(scene, "Particules_Flammes", PathTextureFlamme);
+            AssignerTexture(scene, "Particules_Fumee", PathTextureFumee);
+            AssignerTexture(scene, "Particules_Braises", PathTextureBraise);
+        }
 
-            foreach (var nomObjet in new[] { "Particules_Flammes", "Particules_Braises" })
+        static void AssignerTexture(Scene scene, string nomObjet, string cheminTexture)
+        {
+            var obj = TrouverDansScene(scene, nomObjet);
+            if (obj == null) return; // pas de FeuDeCamp dans cette scène (ex. Concession)
+
+            var renderer = obj.GetComponent<ParticleSystemRenderer>();
+            if (renderer == null || renderer.sharedMaterial == null) return;
+
+            ForcerImportAlphaTransparente(cheminTexture);
+
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(cheminTexture);
+            if (texture == null)
             {
-                var obj = TrouverDansScene(scene, nomObjet);
-                if (obj == null) continue; // pas de FeuDeCamp dans cette scène (ex. Concession)
-
-                var renderer = obj.GetComponent<ParticleSystemRenderer>();
-                if (renderer != null && renderer.sharedMaterial != null)
-                    renderer.sharedMaterial.mainTexture = texture;
+                Debug.LogWarning($"[SceneBuilder] Texture introuvable : {cheminTexture} — repli sur le dégradé radial généré en code.");
+                texture = CreerTextureRadialeDouce(64);
             }
+            renderer.sharedMaterial.mainTexture = texture;
+        }
+
+        /// <summary>
+        /// Les PNG Kenney sont en palette indexée (avec transparence via tRNS) : les
+        /// réglages d'import par défaut de Unity (Alpha Is Transparency désactivé, format
+        /// compressé) rendaient les particules comme des rectangles gris/bleu opaques
+        /// (semi-transparence uniforme venant seulement du gradient de couleur du
+        /// ParticleSystem, pas de la forme réelle de la texture) au lieu d'une vraie
+        /// silhouette de flamme/fumée détourée. Force un import non compressé avec alpha
+        /// exploitable. Idempotent (skip si déjà configuré) — sûr à appeler à chaque build.
+        /// </summary>
+        static void ForcerImportAlphaTransparente(string cheminTexture)
+        {
+            var importer = AssetImporter.GetAtPath(cheminTexture) as TextureImporter;
+            if (importer == null) return;
+            if (importer.alphaIsTransparency && importer.textureCompression == TextureImporterCompression.Uncompressed) return;
+
+            importer.textureType = TextureImporterType.Default;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
         }
 
         /// <summary>Génère une texture en dégradé radial doux (blanc opaque au centre, transparent au bord).</summary>
@@ -1217,16 +1270,23 @@ namespace WuroGalle.Editor
             Instancier(PathSuudu, new Vector3(2.5f, 0f, 0f), Quaternion.identity, "Suudu_2");
 
             // Le hoggo (enclos, 14 piquets + 2 anneaux) et la mare sont déjà inclus dans
-            // Paysage.glb (bakés par enclos_paysage.py) : centrés à ~(-10.5, 0, 0), rayon
-            // ~4 m. Pas d'Instancier(PathEnclos, ...) ici — ça créerait un second enclos
-            // en doublon, ailleurs, comme observé précédemment. Le troupeau (plusieurs
-            // têtes, pas juste une bête de chaque robe : un troupeau se doit d'en avoir
-            // plusieurs) est placé à l'intérieur du vrai enclos, pas à côté d'un doublon.
-            CreerTroupeauDansEnclos(new Vector3(-10.5f, 0f, 0f), 3.3f, nombre: 7);
+            // Paysage.glb (bakés par enclos_paysage.py, DECALAGE_ENCLOS=(-12.0, 0.0) côté
+            // Blender). Le commentaire précédent ici recopiait ces coordonnées Blender
+            // telles quelles (-10.5, 0, 0) en supposant un mapping direct — faux : la
+            // conversion Blender Z-up -> glTF/Unity Y-up inverse l'axe X. Position réelle
+            // dans Unity relevée via DiagnosticTailles.cs (Hoggo_Anneau_1.bounds.center) :
+            // (10.48, ~0, 0), rayon ~4.0 — le troupeau se retrouvait donc à l'opposé de la
+            // vraie clôture (constaté sur le flythrough). Pas d'Instancier(PathEnclos, ...)
+            // ici — ça créerait un second enclos en doublon, ailleurs, comme observé
+            // précédemment. Le troupeau (plusieurs têtes, pas juste une bête de chaque
+            // robe : un troupeau se doit d'en avoir plusieurs) est placé à l'intérieur du
+            // vrai enclos, pas à côté d'un doublon. Rayon de placement 2.8 (< rayon de
+            // clôture ~4.0) pour garder une marge malgré la longueur ~2.2 m des bêtes.
+            CreerTroupeauDansEnclos(new Vector3(10.5f, 0f, 0f), 2.8f, nombre: 7);
 
             // Calebasse près de l'enclos : évoque la traite du matin (zone de traite
             // documentée comme proche du hoggo, pas modélisée comme espace à part).
-            Instancier(PathCalebasse, new Vector3(-10.5f, 0f, 3f), Quaternion.identity, "Calebasse_Traite");
+            Instancier(PathCalebasse, new Vector3(10.5f, 0f, 3.4f), Quaternion.identity, "Calebasse_Traite");
 
             // Mobilier domestique dans l'espace central commun, entre le foyer et le
             // joueur : vie quotidienne autour du feu (cuisine, couchage) plutôt qu'un
@@ -1253,11 +1313,11 @@ namespace WuroGalle.Editor
             CreerFeuDeCamp(new Vector3(0f, 0f, 0f));
 
             // Audio spatialisé : feu localisé (petite portée), troupeau/clochettes près
-            // du hoggo (baké dans Paysage, ~(-10.5,0,0)), vent en ambiance diffuse
+            // du hoggo (baké dans Paysage, ~(10.5,0,0)), vent en ambiance diffuse
             // (spatialBlend faible : audible partout, pas localisé à un point).
             CreerSourceAudio("Audio_Feu", AudioFeu, new Vector3(0f, 0.3f, 0f), 0.7f, 6f);
-            CreerSourceAudio("Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.6f, 12f);
-            CreerSourceAudio("Audio_Paturage", AudioGrazingCows, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
+            CreerSourceAudio("Audio_Clochettes", AudioCowBells, new Vector3(10.5f, 0.5f, 0f), 0.6f, 12f);
+            CreerSourceAudio("Audio_Paturage", AudioGrazingCows, new Vector3(10.5f, 0.5f, 0f), 0.5f, 12f);
             CreerSourceAudio("Audio_Vent", AudioWind, new Vector3(0f, 2f, 4f), 0.35f, 30f, spatialBlend: 0.2f);
 
             CreerLumiereDirectionnelle("Soleil_Zenith", new Color(1f, 0.98f, 0.9f));
@@ -1265,6 +1325,15 @@ namespace WuroGalle.Editor
             // Joueur : en face du foyer, entre les deux suudu (contrôleur desktop
             // provisoire — remplacé par un rig XR à l'étape suivante).
             CreerJoueur(new Vector3(0f, 0f, 4f), Quaternion.Euler(0, 180, 0));
+
+            // PNJ_Berger : intégré directement ici plutôt que laissé au menu séparé
+            // "Ajouter un PNJ" — un BuildCampement (reconstruction complète depuis zéro)
+            // faisait disparaître le PNJ silencieusement puisqu'il n'était ajouté que par
+            // cette étape manuelle à part, facile à oublier après chaque reconstruction
+            // (constaté : le PNJ manquait entièrement sur le flythrough après un rebuild
+            // pour corriger la position de l'enclos). Mêmes coordonnées que
+            // AjouterPNJSceneActive (menu conservé pour ré-ajouter isolément si besoin).
+            CreerPNJPlaceholder("PNJ_Berger", PathPNJHomme, new Vector3(-1f, 0f, 1f), Quaternion.Euler(0, -30, 0));
 
             SauvegarderScene(scene, "Campement");
         }
@@ -1287,7 +1356,7 @@ namespace WuroGalle.Editor
             // Canari_Entree/Case_Hote : peu compatible avec un moment de recueillement.
             // Reste dans la même zone publique proche de l'entrée (z<0, cohérent avec
             // schema-annote-suudu-galle.md) mais dans son propre coin, à l'écart du
-            // passage direct et loin de l'enclos (x=-10.5, voir CreerTroupeauDansEnclos
+            // passage direct et loin de l'enclos (x=10.5, voir CreerTroupeauDansEnclos
             // ci-dessous — un dudal collé au bétail casserait l'intimité recherchée).
             Instancier(PathDudal, new Vector3(5.5f, 0f, -2.5f), Quaternion.identity, "Dudal");
 
@@ -1339,24 +1408,29 @@ namespace WuroGalle.Editor
             // plus modeste qu'au Campement (le gros du troupeau part en transhumance
             // avec le campement mobile ; la concession garde un noyau domestique plutôt
             // que le troupeau complet).
-            CreerTroupeauDansEnclos(new Vector3(-10.5f, 0f, 0f), 3.3f, nombre: 4);
+            CreerTroupeauDansEnclos(new Vector3(10.5f, 0f, 0f), 2.8f, nombre: 4);
 
             // Audio spatialisé : appel à la prière au-dessus du dudal, mouton + clochettes
-            // près de l'enclos (Paysage, mêmes coordonnées bakées ~(-10.5,0,0), cohérent
+            // près de l'enclos (Paysage, mêmes coordonnées bakées ~(10.5,0,0), cohérent
             // avec le bétail maintenant présent), vent en ambiance diffuse. Pas de son
             // d'ambiance de village générique : le seul fichier disponible
             // (uganda-village-at-night) est explicitement nocturne, incohérent avec
             // l'éclairage de zénith de la scène — écarté plutôt qu'utilisé à tort (voir
             // note-ethique.md sur la cohérence des sources).
             CreerSourceAudio("Audio_AppelPriere", AudioAppelPriere, new Vector3(5.5f, 1.5f, -2.5f), 0.5f, 15f);
-            CreerSourceAudio("Audio_Clochettes", AudioCowBells, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
-            CreerSourceAudio("Audio_Mouton", AudioMouton, new Vector3(-10.5f, 0.5f, 0f), 0.5f, 12f);
+            CreerSourceAudio("Audio_Clochettes", AudioCowBells, new Vector3(10.5f, 0.5f, 0f), 0.5f, 12f);
+            CreerSourceAudio("Audio_Mouton", AudioMouton, new Vector3(10.5f, 0.5f, 0f), 0.5f, 12f);
             CreerSourceAudio("Audio_Vent", AudioWind, new Vector3(0f, 2f, -4f), 0.35f, 30f, spatialBlend: 0.2f);
 
             CreerLumiereDirectionnelle("Soleil_Zenith", new Color(1f, 0.98f, 0.9f));
 
             // Joueur : positionné côté entrée, face à l'intérieur de la concession.
             CreerJoueur(new Vector3(0f, 0f, -4f), Quaternion.identity);
+
+            // PNJ_Femme : intégré directement ici — même correctif que BuildCampement/
+            // PNJ_Berger (voir commentaire là-bas), le menu séparé "Ajouter un PNJ" se
+            // faisait oublier après chaque reconstruction complète de la scène.
+            CreerPNJPlaceholder("PNJ_Femme", PathPNJFemme, new Vector3(0.5f, 0f, 3.5f), Quaternion.Euler(0, 160, 0));
 
             SauvegarderScene(scene, "Concession");
         }
@@ -1458,7 +1532,7 @@ namespace WuroGalle.Editor
         /// Construit le feu de camp : trois systèmes de particules (flammes, fumée,
         /// braises) + une lumière ponctuelle scintillante, regroupés sous un parent.
         /// </summary>
-        static GameObject CreerFeuDeCamp(Vector3 position)
+        internal static GameObject CreerFeuDeCamp(Vector3 position)
         {
             var parent = new GameObject("FeuDeCamp");
             parent.transform.position = position;
